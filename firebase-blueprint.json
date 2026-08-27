@@ -1,0 +1,21 @@
+{
+  "collections": {
+    "courses_metadata": {
+      "description": "Stores metadata for courses, including real-time purchase counts.",
+      "documents": {
+        "{courseId}": {
+          "fields": {
+            "buyCount": {
+              "type": "number",
+              "description": "Total number of successful purchases for this course."
+            },
+            "lastUpdated": {
+              "type": "timestamp",
+              "description": "The last time this count was modified."
+            }
+          }
+        }
+      }
+    }
+  }
+}

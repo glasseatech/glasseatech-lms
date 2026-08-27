@@ -1,0 +1,860 @@
+import React, { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
+import { 
+  Play, Pause, ChevronRight, ChevronDown, CheckCircle, MessageSquare, 
+  Download, FileText, Sparkles, Send, Star, Volume2, ShieldCheck, HelpCircle, 
+  Check, X, Award, ExternalLink, RotateCcw 
+} from 'lucide-react';
+import { Course, Chapter, Lesson, Quiz, Review } from '../types.ts';
+import AdvancedVideoPlayer from './AdvancedVideoPlayer.tsx';
+
+interface CoursePlayerProps {
+  course: Course;
+  userEmail?: string;
+  userName?: string;
+  onCertificateEarned: (courseTitle: string) => void;
+  onNavigate: (page: string) => void;
+}
+
+export default function CoursePlayer({
+  course: initialCourse,
+  userEmail,
+  userName,
+  onCertificateEarned,
+  onNavigate
+}: CoursePlayerProps) {
+  const course = React.useMemo(() => {
+    if (initialCourse.chapters && initialCourse.chapters.length > 0 && initialCourse.chapters.some(ch => ch.lessons && ch.lessons.length > 0)) {
+      return initialCourse;
+    }
+    // Generate high-quality chapters and lessons based on the course title and category!
+    const category = initialCourse.category || 'General';
+    const title = initialCourse.title || 'Advanced Masterclass';
+    const fallbackChapters = [
+      {
+        id: `gen-ch-1-${initialCourse.id}`,
+        title: `Introduction & Foundational Concepts of ${category}`,
+        lessons: [
+          {
+            id: `gen-les-1-${initialCourse.id}`,
+            title: `Chapter 1: Getting Started with ${title}`,
+            videoUrl: 'https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-',
+            duration: '09:45',
+            isPreview: false,
+            content: `Welcome to this premium masterclass on ${title}. In this initial lecture, we explore core philosophies, system prerequisites, and the step-by-step learning roadmap. Learn how to map out structural requirements for scaling ${category} environments.`,
+            attachments: [
+              { name: `${category.toLowerCase()}_handout_v1.pdf`, url: '#' },
+              { name: `course_getting_started.zip`, url: '#' }
+            ],
+            quiz: {
+              id: `gen-qz-1-${initialCourse.id}`,
+              question: `What is the primary goal of studying ${title}?`,
+              options: [
+                `To acquire robust industry-standard expertise and deploy optimized solutions`,
+                `To simply watch videos without applying the foundational principles`,
+                `To build low-performance static templates`,
+                `To skip optimization schemas entirely`
+              ],
+              correctIndex: 0
+            }
+          },
+          {
+            id: `gen-les-2-${initialCourse.id}`,
+            title: `Chapter 2: Essential Paradigms and Architectural Setup`,
+            videoUrl: 'https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-',
+            duration: '12:30',
+            isPreview: false,
+            content: `In this segment, we deep-dive into practical setups, workflow automation, and tool modeling for ${category}. We walk through installing relevant dependencies, setting up high-performance environments, and resolving core bottlenecks.`
+          }
+        ]
+      },
+      {
+        id: `gen-ch-2-${initialCourse.id}`,
+        title: `Advanced Applied Methodology & Practical Case Studies`,
+        lessons: [
+          {
+            id: `gen-les-3-${initialCourse.id}`,
+            title: `Chapter 3: Deep-Dive Implementation Strategies`,
+            videoUrl: 'https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-',
+            duration: '15:10',
+            isPreview: false,
+            content: `This chapter covers hands-on implementations and live case studies. We analyze step-by-step production failures, security patterns, and optimizations required to run ${title} at scale.`,
+            quiz: {
+              id: `gen-qz-2-${initialCourse.id}`,
+              question: `Which approach is highly recommended for scaling ${category} solutions?`,
+              options: [
+                `Deploying unoptimized code directly to single-point-of-failure servers`,
+                `Designing modular, well-tested, and resilient software architectures with error recovery`,
+                `Ignoring runtime telemetry and system resource metrics`,
+                `Eliminating validation layers and security schemas entirely`
+              ],
+              correctIndex: 1
+            }
+          },
+          {
+            id: `gen-les-4-${initialCourse.id}`,
+            title: `Chapter 4: Final Roadmap & Production Deployment`,
+            videoUrl: 'https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-',
+            duration: '18:15',
+            isPreview: false,
+            content: `In our final lesson of this milestone, we cover continuous integration, packaging, deployment configurations, and monitoring. We review student workflows and showcase best practices.`
+          }
+        ]
+      }
+    ];
+    return {
+      ...initialCourse,
+      chapters: fallbackChapters
+    };
+  }, [initialCourse]);
+
+  const [activeChapter, setActiveChapter] = useState<string>('');
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
+  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
+
+  // Reset active chapter/lesson when the course changes
+  useEffect(() => {
+    if (course && course.chapters && course.chapters.length > 0) {
+      // Find the first chapter that has lessons
+      const firstCh = course.chapters.find(ch => ch.lessons && ch.lessons.length > 0) || course.chapters[0];
+      setActiveChapter(firstCh.id);
+      setActiveLesson(firstCh.lessons?.[0] || null);
+      setExpandedChapters({ [firstCh.id]: true });
+    }
+  }, [course?.id]);
+
+  // Track lesson watch percentage
+  const [lessonsProgress, setLessonsProgress] = useState<Record<string, number>>({});
+
+  // UI state variables
+  const [completedLessons, setCompletedLessons] = useState<Record<string, boolean>>({});
+
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'notes' | 'discussion' | 'attachments'>('notes');
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Notes inputs
+  const [notes, setNotes] = useState<string>('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+
+  // Comments/Discussions input
+  const [comments, setComments] = useState<Review[]>([]);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [chatRating, setChatRating] = useState(5);
+
+  // Quiz inputs
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScoreStatus, setQuizScoreStatus] = useState<'idle' | 'success' | 'failed'>('idle');
+  
+  // Certificate awarding states
+  const [certificatePending, setCertificatePending] = useState(false);
+  const [certificateGranted, setCertificateGranted] = useState(false);
+  const [hasCelebrated, setHasCelebrated] = useState(false);
+
+  // Video Link active override state
+  const [activeOverrideUrl, setActiveOverrideUrl] = useState<string | null>(null);
+
+  // Standardized YouTube Embed Format extractor
+  const getYouTubeEmbedUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
+    const match = trimmed.match(regExp);
+    let videoId = '';
+    
+    if (match && match[2].length === 11) {
+      videoId = match[2];
+    } else {
+      try {
+        if (trimmed.includes('v=')) {
+          const parts = trimmed.split('v=')[1].split('&')[0].split('?')[0];
+          if (parts.length === 11) videoId = parts;
+        } else if (trimmed.includes('youtu.be/')) {
+          const parts = trimmed.split('youtu.be/')[1].split('&')[0].split('?')[0];
+          if (parts.length === 11) videoId = parts;
+        } else if (trimmed.includes('embed/')) {
+          const parts = trimmed.split('embed/')[1].split('&')[0].split('?')[0];
+          if (parts.length === 11) videoId = parts;
+        } else if (trimmed.includes('shorts/')) {
+          const parts = trimmed.split('shorts/')[1].split('&')[0].split('?')[0];
+          if (parts.length === 11) videoId = parts;
+        }
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&playsinline=1`;
+    }
+    return trimmed;
+  };
+
+  useEffect(() => {
+    let active = true;
+    const fetchActiveLink = async () => {
+      try {
+        const { collection, getDocs, query, where } = await import("firebase/firestore");
+        const { db } = await import("../firebase.ts");
+        const q = query(collection(db, "video_links"), where("isActive", "==", true));
+        const querySnapshot = await getDocs(q);
+        if (!active) return;
+        
+        let foundUrl = '';
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data && data.url) {
+            foundUrl = data.url;
+          }
+        });
+        if (foundUrl) {
+          setActiveOverrideUrl(foundUrl);
+        } else {
+          setActiveOverrideUrl(null);
+        }
+      } catch (err) {
+        console.warn("Could not fetch active video link from Firestore in CoursePlayer:", err);
+      }
+    };
+    fetchActiveLink();
+    return () => {
+      active = false;
+    };
+  }, [activeLesson?.id]);
+
+  // CHECK ELIGIBILITY FOR GRADUATION
+  const allLessonsCompleted = () => {
+    // Check if the current student has completed quizzes or checked coursework
+    const totalLessons = course.chapters.flatMap(ch => ch.lessons).length;
+    const tickCount = Object.values(completedLessons).filter(Boolean).length;
+    return tickCount >= totalLessons || (totalLessons > 0 && quizScoreStatus === 'success');
+  };
+
+  useEffect(() => {
+    if (allLessonsCompleted() && !hasCelebrated) {
+      setHasCelebrated(true);
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+  }, [completedLessons, quizScoreStatus, course.chapters, hasCelebrated]);
+
+  // Load initial completed lessons and watch progress from localStorage
+  useEffect(() => {
+    const initialCompleted: Record<string, boolean> = {};
+    const initialProgress: Record<string, number> = {};
+
+    course.chapters.forEach((ch) => {
+      ch.lessons.forEach((les) => {
+        // Load watch stats
+        const savedProgress = localStorage.getItem(`video-progress-${course.id}-${les.id}`);
+        if (savedProgress) {
+          try {
+            const data = JSON.parse(savedProgress);
+            if (data.watchedPercent) {
+              const rounded = Math.round(data.watchedPercent);
+              initialProgress[les.id] = rounded;
+              // If watched more than 95%, auto-mark completed
+              if (rounded > 95) {
+                initialCompleted[les.id] = true;
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        // Also check manual completed marks
+        const manualComplete = localStorage.getItem(`manual-completed-${course.id}-${les.id}`);
+        if (manualComplete === 'true') {
+          initialCompleted[les.id] = true;
+        }
+      });
+    });
+
+    setCompletedLessons(initialCompleted);
+    setLessonsProgress(initialProgress);
+  }, [course?.id]);
+
+  // Initialize completed lessons and clear quiz states when active lesson changes
+  useEffect(() => {
+    if (activeLesson) {
+      // Clear quiz states when lesson changes
+      setSelectedOption(null);
+      setQuizSubmitted(false);
+      setQuizScoreStatus('idle');
+      
+      // Load saved notes for this lesson
+      const savedNotes = localStorage.getItem(`notes-${course.id}-${activeLesson.id}`);
+      setNotes(savedNotes || '');
+
+      // Load comments for this specific lesson
+      fetchComments();
+    }
+  }, [activeLesson]);
+
+  const fetchComments = () => {
+    if (!activeLesson) return;
+    fetch(`/api/comments?courseId=${course.id}&lessonId=${activeLesson.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setComments(data);
+        }
+      })
+      .catch((e) => console.error('Failed to load lesson comments', e));
+  };
+
+  const handleSendComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommentText.trim() || !activeLesson) return;
+
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: course.id,
+          lessonId: activeLesson.id,
+          userName: userName || userEmail?.split('@')[0] || 'Premium Scholar',
+          rating: chatRating,
+          comment: newCommentText
+        })
+      });
+      if (response.ok) {
+        setNewCommentText('');
+        fetchComments();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleChapter = (chId: string) => {
+    setExpandedChapters(prev => ({
+      ...prev,
+      [chId]: !prev[chId]
+    }));
+  };
+
+  const handleRewatchAndReset = () => {
+    // Clear all manual-completed and video-progress records for this course's lessons
+    course.chapters.forEach((ch) => {
+      ch.lessons.forEach((les) => {
+        localStorage.removeItem(`manual-completed-${course.id}-${les.id}`);
+        localStorage.removeItem(`video-progress-${course.id}-${les.id}`);
+      });
+    });
+
+    // Reset player specific states
+    setCompletedLessons({});
+    setLessonsProgress({});
+    setHasCelebrated(false);
+    setQuizScoreStatus('idle');
+    setQuizSubmitted(false);
+    setSelectedOption(null);
+    setCertificateGranted(false);
+
+    // Rewatch from the very first lesson
+    if (course.chapters[0]?.lessons[0]) {
+      setActiveChapter(course.chapters[0].id);
+      setActiveLesson(course.chapters[0].lessons[0]);
+      setExpandedChapters({ [course.chapters[0].id]: true });
+    }
+  };
+
+  const handleLessonCheck = (lessonId: string) => {
+    setCompletedLessons(prev => {
+      const isNowCompleted = !prev[lessonId];
+      const updated = { ...prev, [lessonId]: isNowCompleted };
+      localStorage.setItem(`manual-completed-${course.id}-${lessonId}`, isNowCompleted ? 'true' : 'false');
+      
+      // Update progress state manually to match 100% or 0%
+      setLessonsProgress(p => ({
+        ...p,
+        [lessonId]: isNowCompleted ? 100 : 0
+      }));
+      localStorage.setItem(
+        `video-progress-${course.id}-${lessonId}`,
+        JSON.stringify({ currentTime: 0, duration: 100, watchedPercent: isNowCompleted ? 100 : 0 })
+      );
+
+      return updated;
+    });
+  };
+
+  const handleVideoProgressUpdate = (percent: number) => {
+    if (!activeLesson) return;
+    const rounded = Math.round(percent);
+    setLessonsProgress(prev => ({
+      ...prev,
+      [activeLesson.id]: rounded
+    }));
+  };
+
+  const handleVideoComplete = () => {
+    if (!activeLesson) return;
+    setCompletedLessons(prev => {
+      const updated = { ...prev, [activeLesson.id]: true };
+      localStorage.setItem(`manual-completed-${course.id}-${activeLesson.id}`, 'true');
+      return updated;
+    });
+  };
+
+
+  const handleSaveNotes = () => {
+    if (!activeLesson) return;
+    setIsSavingNotes(true);
+    localStorage.setItem(`notes-${course.id}-${activeLesson.id}`, notes);
+    setTimeout(() => {
+      setIsSavingNotes(false);
+    }, 1000);
+  };
+
+  const handleQuizSubmit = () => {
+    if (selectedOption === null || !activeLesson?.quiz) return;
+    setQuizSubmitted(true);
+    
+    if (selectedOption === activeLesson.quiz.correctIndex) {
+      setQuizScoreStatus('success');
+      // Append completed lesson automatically on quiz success
+      setCompletedLessons(prev => ({ ...prev, [activeLesson.id]: true }));
+    } else {
+      setQuizScoreStatus('failed');
+    }
+  };
+
+  const handleClaimCertificate = async () => {
+    setCertificatePending(true);
+    try {
+      const response = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userEmail || 'student-guest',
+          courseId: course.id,
+          courseTitle: course.title,
+          recipientName: userName || userEmail?.split('@')[0] || 'Premium Scholar'
+        })
+      });
+      if (response.ok) {
+        setCertificateGranted(true);
+        // Bubble event to main driver
+        onCertificateEarned(course.title);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCertificatePending(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen text-left bg-neutral-bg flex flex-col lg:flex-row pt-24" id="course-player-root">
+      
+      {/* ================= LEFT COLUMN: LUMINARY VIDEO WORKSPACE ================= */}
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 lg:h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        
+        {/* Dynamic header navigation trail */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono text-[10px] sm:text-xs">
+          <div className="flex items-center gap-1.5 text-neutral-medium overflow-x-auto whitespace-nowrap pb-1 sm:pb-0 scrollbar-hide">
+            <button onClick={() => onNavigate('home')} className="hover:text-primary transition cursor-pointer">ACADEMY</button>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <button onClick={() => onNavigate('student-dashboard')} className="hover:text-primary transition cursor-pointer">CLASSROOM</button>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <span className="text-neutral-dark font-semibold truncate max-w-[150px] sm:max-w-xs">{course.title}</span>
+          </div>
+
+          {/* Core progress tracker state */}
+          <div className="text-left sm:text-right border-l sm:border-l-0 sm:border-r border-primary/20 pl-3 sm:pl-0 sm:pr-3">
+            <span className="text-[9px] text-neutral-medium uppercase tracking-wider block">GRADUATION MILESTONE</span>
+            <span className="text-xs font-bold font-mono text-neutral-dark">
+              {Object.values(completedLessons).filter(Boolean).length} of {course.chapters.flatMap(ch => ch.lessons).length} modules
+            </span>
+          </div>
+        </div>
+
+        {/* Video simulation viewer player */}
+        {activeLesson ? (
+          <div className="space-y-4" id="video-workspace-anchor">
+            
+            {/* Standardized YouTube Iframe-Based Video Player Casing */}
+            <AdvancedVideoPlayer
+              videoUrl={activeOverrideUrl || activeLesson.videoUrl}
+              courseId={course.id}
+              lessonId={activeLesson.id}
+              userEmail={userEmail}
+              isLiveSeminar={!!activeOverrideUrl}
+              onProgressUpdate={(percent) => {
+                // CoursePlayer internal check handler (optional)
+              }}
+              onComplete={() => {
+                // Auto-mark lesson as complete if it hits 95%
+                if (!completedLessons[activeLesson.id]) {
+                  handleLessonCheck(activeLesson.id);
+                }
+              }}
+            />
+
+            {/* Title, check toggle, and content descriptor */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-neutral-light/5 border border-white/[0.05]">
+              <div className="text-left space-y-1">
+                <span className="text-[10px] text-primary font-mono tracking-widest font-extrabold uppercase">CURRENT SELECTION</span>
+                <h2 className="font-display font-extrabold text-lg sm:text-xl text-neutral-dark leading-tight">{activeLesson.title}</h2>
+              </div>
+              <button
+                onClick={() => handleLessonCheck(activeLesson.id)}
+                className={`px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer w-full md:w-auto ${
+                  completedLessons[activeLesson.id]
+                    ? 'bg-accent-alt/15 text-accent-alt border-accent-alt glow-neon-emerald'
+                    : 'bg-neutral-light/5 text-neutral-medium border-transparent hover:border-white/10'
+                }`}
+              >
+                <CheckCircle className="h-4 w-4" />
+                {completedLessons[activeLesson.id] ? 'MODULE COMPLETE' : 'MARK COMPLETE'}
+              </button>
+            </div>
+
+            {/* Syllabus writeup explanation text */}
+            <div className="p-6 rounded-2xl glass-panel text-left space-y-3">
+              <span className="text-[10px] font-mono text-neutral-medium uppercase tracking-widest block">Syllabus Guidance Notes</span>
+              <p className="text-xs text-neutral-dark leading-relaxed font-mono whitespace-pre-line bg-secondary-dark/60 p-4 rounded-xl border border-white/5">
+                {activeLesson.content || 'This lesson covers advanced, structurally sound paradigms for production systems. Load corresponding workspace worksheets to test optimization schemas.'}
+              </p>
+            </div>
+
+            {/* QUIZ PORTAL CASING IF DEFINED */}
+            {activeLesson.quiz && (
+              <div className="p-6 rounded-2xl border border-accent/20 bg-accent/5 overflow-hidden font-mono space-y-5 text-left" id="interactive-quiz-portal">
+                <div className="flex items-center gap-2 border-b border-accent/20 pb-3">
+                  <HelpCircle className="h-4.5 w-4.5 text-accent animate-spin" style={{ animationDuration: '4s' }} />
+                  <span className="text-xs font-bold text-neutral-dark uppercase tracking-wide">INTERACTIVE COMPETENCY WORKHEET</span>
+                </div>
+
+                <div className="space-y-4">
+                  <span className="block text-sm font-bold text-neutral-dark leading-relaxed">{activeLesson.quiz.question}</span>
+                  
+                  {/* Option Buttons */}
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {activeLesson.quiz.options.map((opt, optIdx) => (
+                      <button
+                        key={optIdx}
+                        disabled={quizSubmitted}
+                        onClick={() => setSelectedOption(optIdx)}
+                        className={`p-3 rounded-lg text-xs leading-5 text-left transition border ${
+                          selectedOption === optIdx
+                            ? 'bg-accent/15 border-accent text-neutral-dark font-semibold'
+                            : 'bg-neutral-light/5 border-transparent text-neutral-medium hover:bg-neutral-light/10 hover:text-neutral-dark'
+                        }`}
+                      >
+                        <span className="font-bold mr-2">{String.fromCharCode(65 + optIdx)}.</span>
+                        <span>{opt}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Actions log quiz */}
+                  <div className="pt-3 flex items-center justify-between gap-4">
+                    {!quizSubmitted ? (
+                      <button
+                        onClick={handleQuizSubmit}
+                        disabled={selectedOption === null}
+                        className="px-5 py-2 bg-accent text-neutral-dark rounded-xl text-xs font-bold font-display cursor-pointer hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed glow-neon-pink"
+                      >
+                        Submit Response
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-4 flex-1">
+                        {quizScoreStatus === 'success' ? (
+                          <span className="text-xs font-bold text-accent-alt flex items-center gap-1.5 bg-accent-alt/15 px-3 py-1.5 rounded border border-accent-alt/30 animate-pulse">
+                            <Check className="h-4 w-4" />
+                            Correct Answer matched! Chapter Progress Saved.
+                          </span>
+                        ) : (
+                          <div className="flex items-center justify-between gap-4 flex-1">
+                            <span className="text-xs font-semibold text-accent flex items-center gap-1.5 bg-accent/15 px-3 py-1.5 rounded border border-accent/30">
+                              <X className="h-4 w-4" />
+                              Error: Incomplete match.
+                            </span>
+                            <button
+                              onClick={() => { setSelectedOption(null); setQuizSubmitted(false); setQuizScoreStatus('idle'); }}
+                              className="text-xs text-primary hover:underline font-bold"
+                            >
+                              Retry Quiz
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* DYNAMIC CERTIFICATE GRANTED BANNER */}
+            {allLessonsCompleted() && (
+              <div className="p-6 rounded-2xl bg-gradient-to-tr from-primary/10 via-accent/10 to-accent-alt/10 border border-primary/30 text-left font-sans space-y-4 shadow-xl relative overflow-hidden animate-pulse">
+                <div className="absolute top-0 right-0 p-8 select-none opacity-10 pointer-events-none">
+                  <Award className="h-48 w-48 text-primary" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-accent animate-bounce" />
+                    <span className="text-xs font-mono font-extrabold tracking-widest text-primary uppercase">CREDENTIAL GRADUATION UNLOCKED</span>
+                  </div>
+                  <h3 className="font-display font-extrabold text-lg text-neutral-dark">Congratulations, Academy Scholar!</h3>
+                  <p className="text-xs text-neutral-medium leading-relaxed max-w-xl">
+                    You have unlocked high-passing competency marks inside <span className="text-neutral-dark font-bold">{course.title}</span>. Your blockchain credential code is ready for secure deployment.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {certificateGranted ? (
+                    <button
+                      onClick={() => onNavigate('student-dashboard')}
+                      className="px-6 py-2.5 rounded-xl bg-accent-alt text-secondary-dark text-xs font-bold tracking-wide flex items-center gap-1.5 hover:bg-accent-alt-light transition glow-neon-emerald cursor-pointer"
+                    >
+                      View Credential cabinet
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleClaimCertificate}
+                      disabled={certificatePending}
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary via-primary-light to-accent text-black text-xs font-bold tracking-wide flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {certificatePending ? 'Issuing Cryptographic Hash...' : 'Deploy Verifiable Certificate'}
+                      <Award className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleRewatchAndReset}
+                    className="px-6 py-2.5 rounded-xl bg-neutral-light/10 hover:bg-neutral-light/15 text-neutral-dark text-xs font-bold tracking-wide flex items-center gap-1.5 transition cursor-pointer border border-white/10"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Rewatch & Restart
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        ) : (
+          <div className="p-12 text-center text-xs text-neutral-medium bg-neutral-light/5 rounded-2xl">
+            Please pick a lesson from the syllabus outline map sidebar to spin up the player.
+          </div>
+        )}
+
+        {/* ================= LOWER ROW: WORKSPACE TAB SECTION ================= */}
+        <div className="mt-8 border-t border-white/[0.05] pt-8">
+          <div className="flex overflow-x-auto scrollbar-hide border-b border-white/[0.05] gap-4" id="workspace-tabs-menu">
+            {(['notes', 'discussion', 'attachments'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveWorkspaceTab(tab)}
+                className={`pb-2.5 pt-1 text-xs font-mono uppercase tracking-widest border-b-2 transition shrink-0 ${
+                  activeWorkspaceTab === tab
+                    ? 'border-primary text-primary font-bold'
+                    : 'border-transparent text-neutral-medium hover:text-neutral-dark'
+                }`}
+              >
+                {tab === 'notes' ? 'Personal Notes' : (tab === 'discussion' ? `Discussions (${comments.length})` : 'Attachments')}
+              </button>
+            ))}
+          </div>
+
+          {/* TAB CONTENT: SAVING NOTES */}
+          {activeWorkspaceTab === 'notes' && (
+            <div className="mt-6 space-y-4" id="workspace-notes-tab">
+              <span className="text-[10px] text-neutral-medium font-mono uppercase block">Scratchpad Code Console (Autosaved locally)</span>
+              <div className="relative">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Paste structural configurations, code snippets, or notes about EVM optimization gas values..."
+                  className="w-full h-44 bg-neutral-light font-mono text-xs rounded-xl border border-neutral-medium/20 p-4 text-neutral-dark focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-neutral-medium font-mono">Changes persist automatically onto cache memory.</span>
+                <button
+                  onClick={handleSaveNotes}
+                  className="px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  {isSavingNotes ? 'Locking in...' : 'Sync Scratchpad'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB CONTENT: DISCUSSION BOARD */}
+          {activeWorkspaceTab === 'discussion' && (
+            <div className="mt-6 space-y-6 text-left" id="workspace-discussion-tab">
+              <form onSubmit={handleSendComment} className="flex gap-4">
+                <input
+                  type="text"
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  placeholder="Engage on optimization strategies, ask EVM questions..."
+                  className="flex-1 bg-neutral-light border border-neutral-medium/20 rounded-xl p-3 text-xs text-neutral-dark focus:outline-none focus:border-primary"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="px-4 bg-gradient-to-r from-primary via-primary-light to-accent text-black rounded-xl flex items-center justify-center cursor-pointer hover:scale-[1.05] active:scale-[0.95] transition-all"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+
+              {/* Feed logs */}
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                {comments.length === 0 ? (
+                  <span className="block text-xs text-neutral-medium text-center py-6">No discussions active for this module yet. Be the first to consult!</span>
+                ) : (
+                  [...comments].reverse().map((c) => (
+                    <div key={c.id} className="p-4 bg-neutral-light/5 rounded-xl border border-white/[0.04]">
+                      <div className="flex justify-between items-center mb-1 font-mono text-[11px] text-neutral-medium">
+                        <span className="font-bold text-neutral-dark">{c.userName}</span>
+                        <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-xs text-neutral-dark font-mono leading-relaxed">{c.comment}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB CONTENT: ATTACHMENTS */}
+          {activeWorkspaceTab === 'attachments' && (
+            <div className="mt-6 space-y-3" id="workspace-attachments-tab">
+              <span className="text-[10px] text-neutral-medium font-mono uppercase block">Syllabus Supplementary Material</span>
+              {activeLesson?.attachments && activeLesson.attachments.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {activeLesson.attachments.map((at, idx) => (
+                    <div key={idx} className="p-3 bg-neutral-light/5 rounded-xl border border-white/5 flex items-center justify-between font-mono">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span className="text-xs text-neutral-dark font-bold truncate max-w-xs">{at.name}</span>
+                      </div>
+                      <button className="p-1 px-2 hover:bg-primary hover:text-secondary-dark border border-white/10 rounded text-[10px] text-primary transition font-extrabold cursor-pointer">
+                        DOWNLOAD
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="block text-xs text-neutral-medium text-center py-4 bg-neutral-light/5 rounded-xl">No downloadable attachments configured for this modular block.</span>
+              )}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ================= RIGHT COLUMN: INTERACTIVE NAVIGATION SIDEBAR ================= */}
+      <div className="w-full lg:w-80 glass-panel border-t lg:border-t-0 lg:border-l border-white/[0.08] lg:h-[calc(100vh-6rem)] lg:overflow-y-auto" id="course-player-sidebar">
+        
+        {/* Course Info metadata Box */}
+        <div className="p-4 sm:p-6 border-b border-white/[0.08] text-left bg-neutral-light/[0.02]">
+          <span className="text-[9px] font-mono text-primary uppercase tracking-widest font-bold">COURSE SYLLABUS</span>
+          <h3 className="font-display font-bold text-sm sm:text-base text-neutral-dark leading-snug mt-1">{course.title}</h3>
+          <span className="text-[10px] sm:text-xs text-neutral-medium font-mono block mt-1.5">Instructor: {course.instructorName}</span>
+        </div>
+
+        {/* Scrollable chapters syllabus accordions list */}
+        <div className="divide-y divide-white/[0.05]">
+          {course.chapters.map((ch, idx) => {
+            const isExpanded = !!expandedChapters[ch.id];
+            return (
+              <div key={ch.id} className="text-left">
+                {/* Accordion header clicker */}
+                <button
+                  onClick={() => toggleChapter(ch.id)}
+                  className="w-full p-4 flex items-center justify-between bg-neutral-light/[0.01] hover:bg-neutral-light/[0.03] transition font-mono text-xs text-neutral-dark font-bold cursor-pointer"
+                >
+                  <div className="flex gap-2 items-center mr-2 min-w-0">
+                    <span className="text-[9px] text-primary uppercase font-extrabold font-mono shrink-0">C{idx + 1}</span>
+                    <span className="truncate">{ch.title}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 text-neutral-medium">
+                    <span className="text-[9px] hidden sm:inline">{ch.lessons.length} lessons</span>
+                    {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  </div>
+                </button>
+
+                {/* Lessons list details */}
+                {isExpanded && (
+                  <div className="bg-secondary-dark/40 border-t border-white/[0.03] divide-y divide-white/[0.03]">
+                    {ch.lessons.map((les) => (
+                      <button
+                        key={les.id}
+                        onClick={() => setActiveLesson(les)}
+                        className={`w-full p-3.5 pl-6 flex items-start gap-3 transition-colors text-left font-mono ${
+                          activeLesson?.id === les.id
+                            ? 'bg-primary/10 border-l-2 border-primary text-primary-dark font-bold'
+                            : 'hover:bg-neutral-light/5 text-neutral-medium hover:text-neutral-dark'
+                        }`}
+                        id={`syllabus-sidebar-lesson-${les.id}`}
+                      >
+                        {/* Status Checker Icon */}
+                        <div className="pt-0.5 shrink-0">
+                          {completedLessons[les.id] ? (
+                            <CheckCircle className="h-4 w-4 text-accent-alt glow-neon-emerald" />
+                          ) : (
+                            <Play className="h-4 w-4 text-neutral-medium/50 shrink-0" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 font-sans">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <span className={`block text-xs font-mono leading-relaxed truncate ${activeLesson?.id === les.id ? 'text-primary-dark font-bold' : 'text-neutral-dark'}`}>
+                              {les.title}
+                            </span>
+                            {lessonsProgress[les.id] !== undefined && lessonsProgress[les.id] > 0 && (
+                              <span className="text-[9px] font-bold font-mono text-primary shrink-0">
+                                {lessonsProgress[les.id]}%
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Tiny premium nested inline progress indicator bar */}
+                          {lessonsProgress[les.id] !== undefined && lessonsProgress[les.id] > 0 && (
+                            <div className="w-full bg-neutral-medium/20 h-1 rounded-full overflow-hidden mt-1.5 pointer-events-none">
+                              <div 
+                                className="bg-primary h-full rounded-full transition-all duration-300"
+                                style={{ width: `${lessonsProgress[les.id]}%` }}
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between mt-2 text-[10px] text-neutral-medium font-medium font-mono">
+                            <span>{les.duration} mins</span>
+                            {les.quiz && (
+                              <span className="text-[9px] bg-accent/20 text-accent font-extrabold px-1.5 rounded uppercase tracking-wider scale-95 shrink-0">
+                                Exam Included
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+
+    </div>
+  );
+}

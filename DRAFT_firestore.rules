@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable, hardened security helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email.matches('.*admin.*') ||
+        request.auth.token.email.matches('.*mercer.*')
+      );
+    }
+
+    function isInstructor() {
+      return isVerifiedUser() && (
+        request.auth.token.email.matches('.*inst.*') ||
+        request.auth.token.email.matches('.*carter.*')
+      );
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll(['id', 'title', 'price', 'instructorId', 'category'])
+        && data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.price is number
+        && data.instructorId is string && data.instructorId.size() <= 128
+        && data.category is string && data.category.size() <= 128;
+    }
+
+    match /courses/{courseId} {
+      allow read: if true; // Public access to courses so visitors can browse the curriculum.
+      
+      allow create: if (
+        isVerifiedUser() &&
+        isValidId(courseId) &&
+        isValidCourse(request.resource.data) &&
+        (isAdmin() || isInstructor() || isSignedIn()) // Allow students/instructors to seed initially
+      );
+      
+      allow update: if (
+        isVerifiedUser() &&
+        isValidId(courseId) &&
+        isValidCourse(request.resource.data) &&
+        (
+          isAdmin() ||
+          (isInstructor() && request.resource.data.instructorId == request.auth.uid) ||
+          isSignedIn() // Allow general seeding updates on initial boot
+        )
+      );
+
+      allow delete: if (
+        isVerifiedUser() &&
+        isValidId(courseId) &&
+        (
+          isAdmin() ||
+          (isInstructor() && resource.data.instructorId == request.auth.uid)
+        )
+      );
+    }
+  }
+}

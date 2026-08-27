@@ -1,0 +1,6 @@
+{
+  "name": "GLASSEA",
+  "description": "A high-end SaaS-quality Learning Management System (LMS) with full dashboards, interactive student course player, instructor content creator, and admin analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
