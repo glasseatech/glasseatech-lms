@@ -171,7 +171,7 @@ export default function CourseDetailModal({
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-neutral-medium/80 pt-2">
               <span className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#00D9FF]" />
-                <strong className="text-white text-sm">{course.studentsCount.toLocaleString()}</strong> researchers
+                <strong className="text-white text-sm">{(course.studentsCount || 0).toLocaleString()}</strong> researchers
               </span>
               {totalLessons > 0 && (
                 <span className="flex items-center gap-2">
@@ -456,7 +456,7 @@ export default function CourseDetailModal({
             <div className="flex flex-col text-center sm:text-left">
               <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-medium dark:text-neutral-medium/80 font-bold leading-none">TOTAL TUITION COST</span>
               <span className="text-xl font-black font-display text-neutral-dark mt-1">
-                {course.price === 0 ? 'Free' : `₦${course.price.toLocaleString()}`}
+                {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
               </span>
             </div>
 
