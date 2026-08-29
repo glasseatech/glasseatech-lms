@@ -104,7 +104,7 @@ export default function PaystackModal({
               </div>
               <div className="pt-3 mt-3 border-t border-neutral-medium/10 flex justify-between items-center">
                 <span className="text-neutral-medium font-medium">Total</span>
-                <span className="text-2xl font-extrabold text-[#09a5db] tracking-tight">₦{amount.toLocaleString()}</span>
+                <span className="text-2xl font-extrabold text-[#09a5db] tracking-tight">₦{(amount || 0).toLocaleString()}</span>
               </div>
             </div>
 
