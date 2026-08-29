@@ -9,6 +9,7 @@ import {
   BarChart, Bar, Legend 
 } from 'recharts';
 import { Course, Chapter, Lesson, Quiz } from '../types.ts';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface InstructorDashboardProps {
   courses: Course[];
@@ -1005,13 +1006,9 @@ export default function InstructorDashboard({
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  if (typeof reader.result === 'string') {
-                                    setThumbnailUrl(reader.result);
-                                  }
-                                };
-                                reader.readAsDataURL(file);
+                                compressImageFile(file, { maxWidth: 800, maxHeight: 450 }).then(dataUrl => {
+                                  setThumbnailUrl(dataUrl);
+                                }).catch(err => console.error('Compression error:', err));
                               }
                             }}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1151,15 +1148,11 @@ export default function InstructorDashboard({
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                          const reader = new FileReader();
-                                          reader.onloadend = () => {
-                                            if (typeof reader.result === 'string') {
-                                              const next = [...chapters];
-                                              next[chIdx].thumbnail = reader.result;
-                                              setChapters(next);
-                                            }
-                                          };
-                                          reader.readAsDataURL(file);
+                                          compressImageFile(file, { maxWidth: 400, maxHeight: 225 }).then(dataUrl => {
+                                            const next = [...chapters];
+                                            next[chIdx].thumbnail = dataUrl;
+                                            setChapters(next);
+                                          }).catch(err => console.error('Compression error:', err));
                                         }
                                       }}
                                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1273,13 +1266,9 @@ export default function InstructorDashboard({
                                           onChange={(e) => {
                                             const file = e.target.files?.[0];
                                             if (file) {
-                                              const reader = new FileReader();
-                                              reader.onloadend = () => {
-                                                if (typeof reader.result === 'string') {
-                                                  handleUpdateLessonField(chIdx, lesIdx, 'thumbnail', reader.result);
-                                                }
-                                              };
-                                              reader.readAsDataURL(file);
+                                              compressImageFile(file, { maxWidth: 400, maxHeight: 225 }).then(dataUrl => {
+                                                handleUpdateLessonField(chIdx, lesIdx, 'thumbnail', dataUrl);
+                                              }).catch(err => console.error('Compression error:', err));
                                             }
                                           }}
                                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1494,13 +1483,9 @@ export default function InstructorDashboard({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              if (typeof reader.result === 'string') {
-                                setEditInstImage(reader.result);
-                              }
-                            };
-                            reader.readAsDataURL(file);
+                            compressImageFile(file, { maxWidth: 250, maxHeight: 250 }).then(dataUrl => {
+                              setEditInstImage(dataUrl);
+                            }).catch(err => console.error('Compression error:', err));
                           }
                         }}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
