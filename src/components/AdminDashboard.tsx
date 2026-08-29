@@ -244,19 +244,36 @@ export default function AdminDashboard({
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch('/api/stats');
-      const data = await res.json();
-      if (res.ok) {
-        setDbUsers(data.users || []);
-        setDbPurchases(data.purchases || []);
-        setMetrics({
-          revenue: data.totalRevenue,
-          studentsCount: data.totalStudents,
-          totalTransactions: data.totalTransactions
-        });
-      }
+      const { collection, getDocs } = await import("firebase/firestore");
+      const { db } = await import("../firebase.ts");
+      
+      const purchasesSnap = await getDocs(collection(db, "purchases"));
+      const purchasesData: Purchase[] = [];
+      let totalRevenue = 0;
+      let totalTransactions = 0;
+      const uniqueUsers = new Set<string>();
+
+      purchasesSnap.forEach((doc) => {
+        const p = { id: doc.id, ...doc.data() } as Purchase;
+        purchasesData.push(p);
+        if (p.status === 'success') {
+          totalRevenue += (p.amount || 0);
+          totalTransactions += 1;
+          uniqueUsers.add(p.userId);
+        }
+      });
+
+      setDbPurchases(purchasesData);
+      setMetrics({
+        revenue: totalRevenue,
+        studentsCount: uniqueUsers.size,
+        totalTransactions: totalTransactions
+      });
+      
+      // Keep users list empty or fetch if needed, but metrics are updated
+      setDbUsers([]);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch admin stats from Firestore", e);
     } finally {
       setStatsLoading(false);
     }
