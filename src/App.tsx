@@ -112,12 +112,11 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
-  
+
   // Handle redirect result from Google Sign-In (for hosts with strict COOP headers like Render)
   useEffect(() => {
     handleRedirectResult().catch(console.error);
   }, []);
-
 
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -570,7 +569,9 @@ export default function App() {
         querySnapshot.forEach((doc) => {
           coursesData.push({ id: doc.id, ...doc.data() });
         });
-
+      } catch (firestoreErr) {
+        console.warn("Could not read courses from Firestore:", firestoreErr);
+      }
 
       // Fetch counts from Express backend (Firestore-backed counts)
       try {
@@ -590,7 +591,6 @@ export default function App() {
 
     } catch (err) {
       console.warn('Unhandled exception in fetchMainDatabase:', err);
-     
     } finally {
       // Also load stats from mock Express backend
       try {
