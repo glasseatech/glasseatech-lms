@@ -721,7 +721,7 @@ export default function Homepage({
                         <div className="flex flex-col text-left">
                           <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-medium">TUITION</span>
                           <span className="text-lg font-bold font-mono text-neutral-dark">
-                            {course.price === 0 ? 'Free' : `₦${course.price.toLocaleString()}`}
+                            {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
                           </span>
                         </div>
                         
