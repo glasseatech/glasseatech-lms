@@ -12,7 +12,7 @@ import CartWishlistDrawers from './components/CartWishlistDrawers.tsx';
 import CustomCursor from './components/CustomCursor.tsx';
 import { Course, Certificate, UserRole, Notification } from './types.ts';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase.ts';
+import { auth, handleRedirectResult } from './firebase.ts';
 
 export default function App() {
   // Offline & Accessibility States
@@ -112,6 +112,12 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+  
+  // Handle redirect result from Google Sign-In (for hosts with strict COOP headers like Render)
+  useEffect(() => {
+    handleRedirectResult().catch(console.error);
+  }, []);
+
 
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
