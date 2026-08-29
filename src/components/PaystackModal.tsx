@@ -31,7 +31,7 @@ export default function PaystackModal({
     reference: (new Date()).getTime().toString() + Math.floor(Math.random() * 1000000000),
     email: paystackEmail || 'student@domain.com',
     amount: amount * 100, // Paystack takes amount in kobo
-    publicKey: 'pk_test_9056cef6b2399e2eea68f3d0d9915afc4fcb1a06',
+    publicKey: 'pk_live_42a1191b8c074eab66c38cac26c3877970a0060a',
   };
 
   const initializePayment = usePaystackPayment(config);
