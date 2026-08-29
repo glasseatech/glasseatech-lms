@@ -536,7 +536,7 @@ export default function InstructorDashboard({
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-neutral-light/5 border border-white/5 p-4 rounded-xl text-left font-mono">
                 <span className="block text-[10px] text-neutral-medium uppercase">Active Ledger Earnings</span>
-                <span className="text-xl font-bold text-accent-alt">₦{earnings.toLocaleString()}</span>
+                <span className="text-xl font-bold text-accent-alt">₦{(earnings || 0).toLocaleString()}</span>
               </div>
               <div className="bg-neutral-light/5 border border-white/5 p-4 rounded-xl text-left font-mono">
                 <span className="block text-[10px] text-neutral-medium uppercase">Active Scholars</span>
@@ -801,7 +801,7 @@ export default function InstructorDashboard({
                         <span className="block text-xs font-bold text-neutral-dark">{c.title}</span>
                         <div className="flex flex-wrap items-center gap-4 text-[10px] text-neutral-medium mt-1">
                           <span>Category: {c.category}</span>
-                          <span>Fee: ₦{c.price.toLocaleString()}</span>
+                          <span>Fee: ₦{(c.price || 0).toLocaleString()}</span>
                           <span>Graduation completions: {c.studentsCount} scholars</span>
                         </div>
                       </div>
