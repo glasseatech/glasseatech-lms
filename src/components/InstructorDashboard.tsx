@@ -65,8 +65,66 @@ export default function InstructorDashboard({
   const [activeSubTab, setActiveSubTab] = useState<'analytics' | 'create-course'>('analytics');
   
   // Analytics ledger state
-  const [earnings, setEarnings] = useState(1280000); // Simulated baseline
-  const [studentCount, setStudentCount] = useState(124);
+  const [earnings, setEarnings] = useState(0); 
+  const [studentCount, setStudentCount] = useState(0);
+  const [revenueChartData, setRevenueChartData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchInstructorStats = async () => {
+      if (!userEmail || !courses) return;
+      try {
+        const { collection, getDocs } = await import("firebase/firestore");
+        const { db } = await import("../firebase.ts");
+
+        // Identify courses owned by this instructor
+        const myCourseIds = new Set(
+          courses.filter(c => c.instructorId === userEmail).map(c => c.id)
+        );
+
+        const purchasesSnap = await getDocs(collection(db, "purchases"));
+        let totalEarnings = 0;
+        const uniqueStudents = new Set<string>();
+        
+        // Group by month for chart
+        const monthlyStats: Record<string, { Sales: number; Students: number; users: Set<string> }> = {};
+
+        purchasesSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.status === 'success' && myCourseIds.has(data.courseId)) {
+            totalEarnings += (data.amount || 0);
+            uniqueStudents.add(data.userId);
+
+            const date = new Date(data.createdAt || Date.now());
+            const monthName = date.toLocaleString('default', { month: 'short' });
+
+            if (!monthlyStats[monthName]) {
+              monthlyStats[monthName] = { Sales: 0, Students: 0, users: new Set() };
+            }
+            monthlyStats[monthName].Sales += (data.amount || 0);
+            monthlyStats[monthName].users.add(data.userId);
+          }
+        });
+
+        setEarnings(totalEarnings);
+        setStudentCount(uniqueStudents.size);
+
+        const chartData = Object.keys(monthlyStats).map(month => ({
+          name: month,
+          Sales: monthlyStats[month].Sales,
+          Students: monthlyStats[month].users.size
+        }));
+
+        setRevenueChartData(chartData.length > 0 ? chartData : [
+          { name: 'No Data', Sales: 0, Students: 0 }
+        ]);
+
+      } catch (err) {
+        console.error("Failed to load instructor analytics:", err);
+      }
+    };
+
+    fetchInstructorStats();
+  }, [userEmail, courses]);
 
   // Manual course creation fields
   const [courseTitle, setCourseTitle] = useState('');
@@ -92,16 +150,6 @@ export default function InstructorDashboard({
   // Feedback states
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  // Analytical charts mocking
-  const revenueChartData = [
-    { name: 'Jan', Sales: 240000, Students: 12 },
-    { name: 'Feb', Sales: 380000, Students: 18 },
-    { name: 'Mar', Sales: 450000, Students: 25 },
-    { name: 'Apr', Sales: 620000, Students: 34 },
-    { name: 'May', Sales: 890000, Students: 45 },
-    { name: 'Jun', Sales: 1280000, Students: 56 }
-  ];
 
   const handleAiSyllabusGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
