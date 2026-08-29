@@ -153,7 +153,7 @@ export default function CartWishlistDrawers({
                             {course.category}
                           </span>
                           <span className="text-xs font-mono font-bold text-neutral-medium">
-                            {course.price === 0 ? 'Free' : `₦${course.price.toLocaleString()}`}
+                            {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
                           </span>
                         </div>
                         <h4 className="font-display font-semibold text-xs text-neutral-dark truncate leading-snug mt-0.5">
@@ -229,19 +229,19 @@ export default function CartWishlistDrawers({
                 <div className="space-y-1.5 text-xs text-neutral-medium">
                   <div className="flex justify-between">
                     <span>Academics Subtotal</span>
-                    <span className="font-mono text-neutral-dark">₦{subtotal.toLocaleString()}</span>
+                    <span className="font-mono text-neutral-dark">₦{(subtotal || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="flex items-center gap-1">
                       Academic Processing Fee
                       <span className="px-1.5 py-0.2 bg-primary/10 text-primary uppercase text-[8px] font-mono rounded font-bold">5% VAT</span>
                     </span>
-                    <span className="font-mono text-neutral-dark">₦{tax.toLocaleString()}</span>
+                    <span className="font-mono text-neutral-dark">₦{(tax || 0).toLocaleString()}</span>
                   </div>
                   <div className="h-px bg-neutral-medium/15 my-2" />
                   <div className="flex justify-between items-center text-sm">
                     <span className="font-bold text-neutral-dark">Grand Tuition Locked</span>
-                    <span className="font-mono font-black text-primary text-base">₦{total.toLocaleString()}</span>
+                    <span className="font-mono font-black text-primary text-base">₦{(total || 0).toLocaleString()}</span>
                   </div>
                 </div>
 
