@@ -9,7 +9,8 @@ import {
   BarChart, Bar, Legend 
 } from 'recharts';
 import { Course, Chapter, Lesson, Quiz } from '../types.ts';
-import { compressImageFile } from '../utils/imageCompressor.ts';
+import { compressImageFile } from '../utils/imageCompressor';
+
 interface InstructorDashboardProps {
   courses: Course[];
   onCourseCreated: () => void;
