@@ -40,26 +40,27 @@ export default function PaystackModal({
     setProcessing(true);
     setPaymentError('');
     try {
+      const { collection, addDoc } = await import("firebase/firestore");
+      const { db } = await import("../firebase.ts");
+      
       const itemsToBuy = courseIds && courseIds.length > 0 
         ? courseIds 
         : (courseId ? [courseId] : []);
 
       if (itemsToBuy.length > 0) {
         for (const cId of itemsToBuy) {
-          const response = await fetch('/api/purchase', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          try {
+            await addDoc(collection(db, "purchases"), {
               userId: paystackEmail || email || 'student-guest',
               userName: userName || (paystackEmail || email)?.split('@')[0] || 'Premium Scholar',
               courseId: cId,
               amount: Math.floor(amount / itemsToBuy.length),
-              reference: reference.reference
-            })
-          });
-
-          if (!response.ok) {
-            console.error('Failed to authorize checkout step.', await response.json());
+              reference: reference.reference,
+              status: "success",
+              createdAt: new Date().toISOString()
+            });
+          } catch (firestoreErr) {
+            console.error('Failed to write purchase to Firestore.', firestoreErr);
           }
         }
       }
