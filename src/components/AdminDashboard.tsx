@@ -483,7 +483,7 @@ export default function AdminDashboard({
                     <div className="p-2 bg-accent/10 rounded-lg"><Coins size={20} /></div>
                     <span className="text-xs uppercase font-bold tracking-wider">Gross Receipts</span>
                   </div>
-                  <span className="text-3xl font-bold text-white">₦{metrics.revenue.toLocaleString()}</span>
+                  <span className="text-3xl font-bold text-white">₦{(metrics.revenue || 0).toLocaleString()}</span>
                 </div>
                 <div className="bg-secondary border border-neutral-light/10 p-6 rounded-2xl shadow-sm">
                   <div className="flex items-center gap-3 mb-4 text-primary">
@@ -547,7 +547,7 @@ export default function AdminDashboard({
                           <tr key={course.id} className="hover:bg-neutral-light/5 transition-colors">
                             <td className="px-6 py-4 text-white font-medium">{course.title}</td>
                             <td className="px-6 py-4 text-neutral-light">{course.instructorId}</td>
-                            <td className="px-6 py-4 text-neutral-light">₦{course.price.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-neutral-light">₦{(course.price || 0).toLocaleString()}</td>
                             <td className="px-6 py-4 text-right flex justify-end gap-2">
                               <button onClick={() => handleApprovalAction(course.id, 'approve')} className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg text-xs font-bold transition-colors">
                                 <Check size={14} /> Approve
@@ -775,7 +775,7 @@ export default function AdminDashboard({
                         <tr key={course.id} className="hover:bg-neutral-light/5 transition-colors">
                           <td className="px-6 py-4 text-white font-medium">{course.title}</td>
                           <td className="px-6 py-4 text-neutral-light">{course.instructorId}</td>
-                          <td className="px-6 py-4 text-neutral-light">₦{course.price.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-neutral-light">₦{(course.price || 0).toLocaleString()}</td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${course.isApproved ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
                               {course.isApproved ? 'Active' : 'Pending'}
@@ -827,7 +827,7 @@ export default function AdminDashboard({
                         <tr key={p.id} className="hover:bg-neutral-light/5 transition-colors">
                           <td className="px-6 py-4 text-neutral-light font-mono text-xs">{p.id}</td>
                           <td className="px-6 py-4 text-white">{p.userId}</td>
-                          <td className="px-6 py-4 text-white font-medium">₦{p.amount.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-white font-medium">₦{(p.amount || 0).toLocaleString()}</td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               p.status === 'success' ? 'bg-green-500/10 text-green-500' : 
