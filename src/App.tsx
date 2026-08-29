@@ -571,23 +571,6 @@ export default function App() {
           coursesData.push({ id: doc.id, ...doc.data() });
         });
 
-        // If no courses in Firestore, seed from INITIAL_COURSES
-        if (coursesData.length === 0) {
-          const { INITIAL_COURSES } = await import("./data.ts");
-          for (const c of INITIAL_COURSES) {
-            try {
-              await setDoc(doc(db, "courses", c.id), c);
-              coursesData.push(c);
-            } catch (seedErr) {
-              console.warn("Could not seed course to Firestore on startup:", seedErr);
-            }
-          }
-        }
-      } catch (firestoreErr) {
-        console.warn("Could not read courses from Firestore (falling back to static local database):", firestoreErr);
-        const { INITIAL_COURSES } = await import("./data.ts");
-        coursesData = INITIAL_COURSES;
-      }
 
       // Fetch counts from Express backend (Firestore-backed counts)
       try {
@@ -607,9 +590,7 @@ export default function App() {
 
     } catch (err) {
       console.warn('Unhandled exception in fetchMainDatabase:', err);
-      // Fallback: If Firestore loading has any unhandled error, gracefully load from local INITIAL_COURSES
-      const { INITIAL_COURSES } = await import("./data.ts");
-      setCourses(INITIAL_COURSES);
+     
     } finally {
       // Also load stats from mock Express backend
       try {
