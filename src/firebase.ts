@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 
@@ -7,17 +7,43 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+}, firebaseConfig.firestoreDatabaseId || '(default)');
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export const signInWithGoogle = async () => {
   try {
+    // Try popup first (works on localhost and most browsers)
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
+    // If popup is blocked by COOP or browser, fall back to redirect
+    if (
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/popup-blocked' ||
+      error?.code === 'auth/unauthorized-domain' ||
+      error?.message?.includes('Cross-Origin-Opener-Policy')
+    ) {
+      console.log('Popup blocked, falling back to redirect sign-in...');
+      await signInWithRedirect(auth, googleProvider);
+      return null; // Page will redirect, so this won't actually return
+    }
     console.error("Error signing in with Google", error);
     throw error;
+  }
+};
+
+// Call this on app startup to handle redirect result
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      return result.user;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error handling redirect result", error);
+    return null;
   }
 };
 
@@ -76,4 +102,3 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
