@@ -23,11 +23,11 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      triggerToast('Network connection recovered. System operational.');
+      triggerToast('Internet connection restored.');
     };
     const handleOffline = () => {
       setIsOffline(true);
-      triggerToast('Terminal disconnected. Running in offline mode.');
+      triggerToast('You are currently offline.');
     };
 
     window.addEventListener('online', handleOnline);
@@ -91,7 +91,7 @@ export default function App() {
 
   // Listen for Firebase Auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         const email = user.email;
         const name = user.displayName || user.email.split('@')[0];
@@ -108,6 +108,19 @@ export default function App() {
         localStorage.setItem('glassea_user_email', email);
         localStorage.setItem('glassea_user_name', name);
         localStorage.setItem('glassea_user_role', role);
+
+        try {
+          const { doc, setDoc } = await import("firebase/firestore");
+          const { db } = await import("./firebase.ts");
+          await setDoc(doc(db, "users", email), {
+            email,
+            role,
+            name,
+            lastLogin: new Date().toISOString()
+          }, { merge: true });
+        } catch (err) {
+          console.error("Failed to sync user to Firestore", err);
+        }
       }
     });
     return () => unsubscribe();
@@ -154,9 +167,26 @@ export default function App() {
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
-  // Global Site Config state (colors, hero text)
-  const [siteConfig, setSiteConfig] = useState<any>({
-    primaryColor: '#00D9FF'
+  // Global Site Config state (colors, hero text) with localStorage caching to prevent flash
+  const [siteConfig, setSiteConfig] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('glassea_site_config');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    return {
+      primaryColor: '#00D9FF',
+      heroTitle: 'Master the Architecture of',
+      heroTitleHighlight: 'Futuristic Tech',
+      heroTitleSuffix: 'Solutions',
+      heroSubtitle: 'GLASSEA is a high-performance learning platform tailored for engineers, designers, and web architects. Build practical, real-world mastery.',
+      catalogTag: 'FEATURED COURSES',
+      catalogTitle: 'Explore Learning Pathways',
+      featuresTitle: 'Why Choose GLASSEA',
+      featuresSubtitle: 'We provide an interactive, high-fidelity platform designed for mastering modern software engineering.',
+      footerAboutTitle: 'About GLASSEA',
+      footerAboutText: 'GLASSEA is a high-performance learning platform tailored for engineers, designers, and web architects.',
+      footerCopyright: '© 2026 GLASSEA TECH. ALL RIGHTS RESERVED'
+    };
   });
 
   useEffect(() => {
@@ -168,6 +198,9 @@ export default function App() {
         if (snap.exists()) {
           const data = snap.data();
           setSiteConfig(data);
+          try {
+            localStorage.setItem('glassea_site_config', JSON.stringify(data));
+          } catch (_) {}
           if (data.primaryColor) {
             document.documentElement.style.setProperty('--primary', data.primaryColor);
             document.documentElement.style.setProperty('--primary-light', data.primaryColor);
@@ -238,18 +271,18 @@ export default function App() {
   const handleToggleCart = (courseId: string) => {
     const isOwned = purchasedCourseIds.includes(courseId);
     if (isOwned) {
-      triggerToast('You already own this course!');
+      triggerToast('You already own this course.');
       return;
     }
 
     setCartCourseIds((prev) => {
       const exists = prev.includes(courseId);
       if (exists) {
-        triggerToast('Removed from your staged academic cart.');
+        triggerToast('Removed from cart.');
         return prev.filter((id) => id !== courseId);
       } else {
         const course = courses.find((c) => c.id === courseId);
-        triggerToast(`"${course?.title || 'Course'}" staged in your academic cart!`);
+        triggerToast(`"${course?.title || 'Course'}" added to your cart.`);
         return [...prev, courseId];
       }
     });
@@ -259,11 +292,11 @@ export default function App() {
     setWishlistCourseIds((prev) => {
       const exists = prev.includes(courseId);
       if (exists) {
-        triggerToast('Removed from your academic wishlist.');
+        triggerToast('Removed from wishlist.');
         return prev.filter((id) => id !== courseId);
       } else {
         const course = courses.find((c) => c.id === courseId);
-        triggerToast(`"${course?.title || 'Course'}" added to your academic wishlist!`);
+        triggerToast(`"${course?.title || 'Course'}" added to wishlist.`);
         return [...prev, courseId];
       }
     });
@@ -271,7 +304,7 @@ export default function App() {
 
   const handleRemoveFromCart = (courseId: string) => {
     setCartCourseIds((prev) => prev.filter((id) => id !== courseId));
-    triggerToast('Course removed from staged cart.');
+    triggerToast('Course removed from cart.');
   };
 
   const handleRemoveFromWishlist = (courseId: string) => {
@@ -286,7 +319,7 @@ export default function App() {
       return prev;
     });
     const course = courses.find((c) => c.id === courseId);
-    triggerToast(`"${course?.title || 'Course'}" moved to staged cart!`);
+    triggerToast(`"${course?.title || 'Course'}" moved to cart.`);
   };
 
   const handleMoveToWishlist = (courseId: string) => {
@@ -296,17 +329,17 @@ export default function App() {
       return prev;
     });
     const course = courses.find((c) => c.id === courseId);
-    triggerToast(`"${course?.title || 'Course'}" moved to your wishlist!`);
+    triggerToast(`"${course?.title || 'Course'}" moved to wishlist.`);
   };
 
   const handleClearCart = () => {
     setCartCourseIds([]);
-    triggerToast('Cleared all items from your staged cart.');
+    triggerToast('Cart cleared.');
   };
 
   const handleClearWishlist = () => {
     setWishlistCourseIds([]);
-    triggerToast('Cleared all items from your wishlist.');
+    triggerToast('Wishlist cleared.');
   };
 
   const handleCheckoutCart = () => {
@@ -314,7 +347,7 @@ export default function App() {
       setPendingCheckoutCart(true);
       setIsOpenCart(false);
       setShowAuthModal(true);
-      triggerToast('Please log in or register to secure checkout of your academic cart.');
+      triggerToast('Please sign in or create an account to proceed to checkout.');
       return;
     }
     setIsOpenCart(false);
@@ -627,7 +660,7 @@ export default function App() {
       {
         id: Date.now().toString() + Math.random().toString(),
         userId: userEmail || 'system',
-        title: 'System Telemetry',
+        title: 'Notification',
         message: msg,
         isRead: false,
         createdAt: new Date().toISOString()
@@ -637,7 +670,7 @@ export default function App() {
     setTimeout(() => setToastMessage(''), 4500);
   };
 
-  const handleAuthSuccess = (email: string, role: UserRole, name?: string) => {
+  const handleAuthSuccess = async (email: string, role: UserRole, name?: string) => {
     setUserEmail(email);
     setCurrentRole(role);
     setShowAuthModal(false);
@@ -660,6 +693,19 @@ export default function App() {
     localStorage.setItem('glassea_user_email', email);
     localStorage.setItem('glassea_user_name', finalName);
     localStorage.setItem('glassea_user_role', role);
+
+    try {
+      const { doc, setDoc } = await import("firebase/firestore");
+      const { db } = await import("./firebase.ts");
+      await setDoc(doc(db, "users", email), {
+        email,
+        role,
+        name: finalName,
+        lastLogin: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Failed to sync user to Firestore", err);
+    }
 
     triggerToast(`Authenticated successfully! Active role profile: ${role}`);
     
@@ -690,12 +736,13 @@ export default function App() {
     }
     setUserEmail('');
     setUserName('');
+    setCurrentRole('STUDENT');
     setPurchasedCourseIds([]);
     setCertificates([]);
     localStorage.removeItem('glassea_user_email');
     localStorage.removeItem('glassea_user_name');
     localStorage.removeItem('glassea_user_role');
-    triggerToast('Securely disconnected from all virtual academic terminals.');
+    triggerToast('Logged out successfully.');
     setActivePage('home');
   };
 
@@ -711,7 +758,7 @@ export default function App() {
       if (!userEmail) {
         setPendingCheckoutCourse(course);
         setShowAuthModal(true);
-        triggerToast('Please log in or register to secure your course admission.');
+        triggerToast('Please sign in or create an account to enroll in this course.');
         return;
       }
       // Trigger Paystack secure purchase
@@ -726,13 +773,13 @@ export default function App() {
 
   const handlePaymentSuccess = async (reference: string) => {
     if (selectedCheckoutCourse) {
-      triggerToast(`Success! Verified lock on course: ${selectedCheckoutCourse.title}. Reference generated.`);
+      triggerToast(`Payment successful! You are now enrolled in: ${selectedCheckoutCourse.title}.`);
       setPurchasedCourseIds((prev) => Array.from(new Set([...prev, selectedCheckoutCourse.id])));
       if (userEmail) {
         await addPurchasedCoursesToFirestore(userEmail, [selectedCheckoutCourse.id]);
       }
     } else if (directPaymentPlan) {
-      triggerToast(`Lifetime ${directPaymentPlan.name} membership initialized correctly.`);
+      triggerToast(`Payment successful! ${directPaymentPlan.name} membership activated.`);
       const allCourseIds = courses.map((c) => c.id);
       setPurchasedCourseIds(allCourseIds);
       if (userEmail) {
@@ -747,14 +794,14 @@ export default function App() {
   };
 
   const handleNewCertificateGranted = (title: string) => {
-    triggerToast(`Congratulations! Verifiable credential dispatched for: ${title}`);
+    triggerToast(`Congratulations! You earned a certificate for: ${title}`);
     fetchMainDatabase();
   };
 
   const handleNavigation = (page: string) => {
     // Role-based navigation restrictions
     if (currentRole === 'ADMIN' && page !== 'admin-dashboard') {
-      triggerToast('Access Restricted: Admins are confined to the management terminal.');
+      triggerToast('Admins can only access the Admin Dashboard.');
       setActivePage('admin-dashboard');
       return;
     }
@@ -976,7 +1023,7 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 glass-panel border border-accent-alt rounded-2xl p-4 flex items-center gap-3 shadow-2xl animate-bounce glow-neon-emerald" id="toast-notif-bar">
           <CheckCircle2 className="h-5 w-5 text-accent-alt animate-pulse shrink-0" />
           <div className="text-xs font-mono text-left">
-            <span className="block font-bold text-neutral-dark uppercase tracking-wider">SYSTEM TELEMETRY DISPATCH</span>
+            <span className="block font-bold text-neutral-dark uppercase tracking-wider">NOTIFICATION</span>
             <span className="text-neutral-medium italic block mt-0.5">{toastMessage}</span>
           </div>
         </div>
