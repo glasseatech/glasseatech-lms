@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, BookOpen, Activity, Check, X, ShieldAlert, Award, 
   Coins, Search, RefreshCw, BarChart, Settings, Sliders,
-  Plus, Trash2, Edit2, Youtube, Link, Tv
+  Plus, Trash2, Edit2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart as RechartsBarChart, Bar, XAxis, YAxis, 
@@ -24,7 +24,7 @@ export default function AdminDashboard({
   userEmail,
   loading
 }: AdminDashboardProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'approvals' | 'courses' | 'transactions' | 'users' | 'analytics' | 'videos' | 'content'>('analytics');
+  const [activeAdminTab, setActiveAdminTab] = useState<'approvals' | 'courses' | 'transactions' | 'users' | 'analytics' | 'content'>('analytics');
   
   // Dynamic metrics pulled from Express stats API
   const [dbUsers, setDbUsers] = useState<User[]>([]);
@@ -39,188 +39,9 @@ export default function AdminDashboard({
   const [statsLoading, setStatsLoading] = useState(true);
   const [refundNotification, setRefundNotification] = useState<string | null>(null);
 
-  // Video Iframe CRUD states
-  const [videoLinks, setVideoLinks] = useState<any[]>([]);
-  const [newTitle, setNewTitle] = useState('');
-  const [newUrl, setNewUrl] = useState('');
-  const [newIsActive, setNewIsActive] = useState(false);
-  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editUrl, setEditUrl] = useState('');
-  const [editIsActive, setEditIsActive] = useState(false);
-  const [videoLoading, setVideoLoading] = useState(false);
-
   // Content (Courses) CRUD states
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseForm, setCourseForm] = useState<Partial<Course>>({});
-
-  const fetchVideoLinks = async () => {
-    setVideoLoading(true);
-    try {
-      const { collection, getDocs, doc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("../firebase.ts");
-      const querySnapshot = await getDocs(collection(db, "video_links"));
-      const links: any[] = [];
-      querySnapshot.forEach((doc) => {
-        links.push({ id: doc.id, ...doc.data() });
-      });
-
-      setVideoLinks(links);
-    } catch (err) {
-      console.error("Could not fetch video links from Firestore:", err);
-    } finally {
-      setVideoLoading(false);
-    }
-  };
-
-  const handleCreateVideoLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim() || !newUrl.trim()) return;
-
-    try {
-      const { doc, setDoc, updateDoc } = await import("firebase/firestore");
-      const { db, handleFirestoreError, OperationType } = await import("../firebase.ts");
-      
-      const linkId = 'vl-' + Date.now();
-      const payload: any = {
-        id: linkId,
-        title: newTitle.trim(),
-        url: newUrl.trim(),
-        isActive: newIsActive,
-        createdAt: new Date().toISOString()
-      };
-
-      // If new link is active, set all other links to inactive
-      if (newIsActive) {
-        for (const link of videoLinks) {
-          if (link.isActive) {
-            try {
-              await updateDoc(doc(db, "video_links", link.id), { isActive: false });
-            } catch (err) {
-              console.warn(`Could not set inactive for ${link.id}:`, err);
-            }
-          }
-        }
-      }
-
-      try {
-        await setDoc(doc(db, "video_links", linkId), payload);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `video_links/${linkId}`);
-      }
-
-      setNewTitle('');
-      setNewUrl('');
-      setNewIsActive(false);
-      fetchVideoLinks();
-    } catch (err) {
-      console.error("Error creating video link:", err);
-    }
-  };
-
-  const handleUpdateVideoLink = async (linkId: string) => {
-    if (!editTitle.trim() || !editUrl.trim()) return;
-
-    try {
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const { db, handleFirestoreError, OperationType } = await import("../firebase.ts");
-
-      // If we are activating this one, we must deactivate all others first!
-      if (editIsActive) {
-        for (const link of videoLinks) {
-          if (link.id !== linkId && link.isActive) {
-            try {
-              await updateDoc(doc(db, "video_links", link.id), { isActive: false });
-            } catch (err) {
-              console.warn(`Could not set inactive for ${link.id}:`, err);
-            }
-          }
-        }
-      }
-
-      try {
-        await updateDoc(doc(db, "video_links", linkId), {
-          title: editTitle.trim(),
-          url: editUrl.trim(),
-          isActive: editIsActive
-        });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `video_links/${linkId}`);
-      }
-
-      setEditingLinkId(null);
-      fetchVideoLinks();
-    } catch (err) {
-      console.error("Error updating video link:", err);
-    }
-  };
-
-  const handleToggleActive = async (linkId: string) => {
-    try {
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const { db, handleFirestoreError, OperationType } = await import("../firebase.ts");
-
-      // Deactivate all others
-      for (const link of videoLinks) {
-        if (link.id !== linkId && link.isActive) {
-          try {
-            await updateDoc(doc(db, "video_links", link.id), { isActive: false });
-          } catch (err) {
-            console.warn(`Could not set inactive for ${link.id}:`, err);
-          }
-        }
-      }
-
-      // Activate this one
-      try {
-        await updateDoc(doc(db, "video_links", linkId), { isActive: true });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `video_links/${linkId}`);
-      }
-
-      fetchVideoLinks();
-    } catch (err) {
-      console.error("Error toggling active status:", err);
-    }
-  };
-
-  const handleDiscardVideoLink = async (linkId: string) => {
-    try {
-      const { doc, deleteDoc, updateDoc } = await import("firebase/firestore");
-      const { db, handleFirestoreError, OperationType } = await import("../firebase.ts");
-
-      const linkToDelete = videoLinks.find(l => l.id === linkId);
-      const wasActive = linkToDelete?.isActive;
-
-      try {
-        await deleteDoc(doc(db, "video_links", linkId));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `video_links/${linkId}`);
-      }
-
-      // If we deleted the active link and there are other links, set another one to active
-      if (wasActive) {
-        const remaining = videoLinks.filter(l => l.id !== linkId);
-        if (remaining.length > 0) {
-          try {
-            await updateDoc(doc(db, "video_links", remaining[0].id), { isActive: true });
-          } catch (err) {
-            console.warn("Could not set replacement link as active:", err);
-          }
-        }
-      }
-
-      fetchVideoLinks();
-    } catch (err) {
-      console.error("Error deleting video link:", err);
-    }
-  };
-
-  useEffect(() => {
-    if (activeAdminTab === 'videos') {
-      fetchVideoLinks();
-    }
-  }, [activeAdminTab]);
 
   useEffect(() => {
     fetchStats();
@@ -433,17 +254,6 @@ export default function AdminDashboard({
             >
               <Users size={14} />
               <span>Users</span>
-            </button>
-            <button
-              onClick={() => setActiveAdminTab('videos')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold tracking-tight whitespace-nowrap transition-all duration-200 shrink-0 ${
-                activeAdminTab === 'videos'
-                  ? 'bg-primary text-black shadow-md'
-                  : 'text-neutral-medium hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Youtube size={14} />
-              <span>Videos</span>
             </button>
             <button
               onClick={() => setActiveAdminTab('content')}
@@ -905,113 +715,6 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {activeAdminTab === 'videos' && (
-            <div className="space-y-6 animate-fade-in pt-[30px]">
-              <h1 className="font-display font-extrabold text-2xl tracking-tight text-white mb-6">Video Integrations</h1>
-              
-              <div className="bg-secondary border border-neutral-light/10 p-6 rounded-2xl shadow-sm mb-8">
-                {editingLinkId ? (
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-4">Edit Video Link</h3>
-                    <form onSubmit={(e) => { e.preventDefault(); handleUpdateVideoLink(editingLinkId); }} className="flex gap-4 items-end">
-                      <div className="flex-1">
-                        <label className="block text-xs font-mono text-neutral-medium mb-1">Title</label>
-                        <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full bg-neutral-bg border border-neutral-light/10 p-3 rounded-xl text-sm text-white focus:outline-none focus:border-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs font-mono text-neutral-medium mb-1">URL (YouTube, Vimeo, etc.)</label>
-                        <input type="text" value={editUrl} onChange={e => setEditUrl(e.target.value)} className="w-full bg-neutral-bg border border-neutral-light/10 p-3 rounded-xl text-sm text-white focus:outline-none focus:border-primary" />
-                      </div>
-                      <div className="flex items-center gap-2 self-end shrink-0 mb-2">
-                        <label className="text-xs font-mono text-neutral-medium">Active?</label>
-                        <input type="checkbox" checked={editIsActive} onChange={e => setEditIsActive(e.target.checked)} className="h-4 w-4 rounded bg-neutral-bg border-neutral-light/10 text-primary accent-primary" />
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="submit" className="bg-primary hover:bg-primary-light transition-colors px-6 py-3 rounded-xl text-black text-sm font-bold shrink-0">
-                          Save
-                        </button>
-                        <button type="button" onClick={() => setEditingLinkId(null)} className="bg-neutral-light/10 hover:bg-neutral-light/20 transition-colors px-4 py-3 rounded-xl text-white text-sm font-bold shrink-0">
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                ) : (
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-4">Add New Video Link</h3>
-                    <form onSubmit={handleCreateVideoLink} className="flex gap-4 items-end">
-                      <div className="flex-1">
-                        <label className="block text-xs font-mono text-neutral-medium mb-1">Title</label>
-                        <input type="text" placeholder="e.g. Master Blockchain Security" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full bg-neutral-bg border border-neutral-light/10 p-3 rounded-xl text-sm text-white focus:outline-none focus:border-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs font-mono text-neutral-medium mb-1">URL (YouTube, Vimeo, etc.)</label>
-                        <input type="text" placeholder="https://..." value={newUrl} onChange={e => setNewUrl(e.target.value)} className="w-full bg-neutral-bg border border-neutral-light/10 p-3 rounded-xl text-sm text-white focus:outline-none focus:border-primary" />
-                      </div>
-                      <button type="submit" className="bg-primary hover:bg-primary-light transition-colors px-6 py-3 rounded-xl text-black text-sm font-bold shrink-0">
-                        Add Video
-                      </button>
-                    </form>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-secondary border border-neutral-light/10 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-neutral-light/5 border-b border-neutral-light/10 text-neutral-medium font-mono text-xs uppercase">
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Title</th>
-                        <th className="px-6 py-4 font-semibold">URL</th>
-                        <th className="px-6 py-4 font-semibold">Status</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-light/5">
-                      {videoLinks.map(link => (
-                        <tr key={link.id} className="hover:bg-neutral-light/5 transition-colors">
-                          <td className="px-6 py-4 text-white font-medium">{link.title}</td>
-                          <td className="px-6 py-4 text-neutral-light font-mono text-xs max-w-xs truncate" title={link.url}>{link.url}</td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${link.isActive ? 'bg-green-500/10 text-green-500' : 'bg-neutral-light/10 text-neutral-medium'}`}>
-                              {link.isActive ? 'Active Broadcast' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right flex justify-end gap-2">
-                            <button 
-                              onClick={() => {
-                                setEditingLinkId(link.id);
-                                setEditTitle(link.title);
-                                setEditUrl(link.url);
-                                setEditIsActive(link.isActive);
-                              }}
-                              className="p-2 text-neutral-medium hover:text-primary transition-colors rounded-lg hover:bg-neutral-light/5"
-                              title="Edit Video Link"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleToggleActive(link.id)} 
-                              className={`p-2 rounded-lg transition-colors ${link.isActive ? 'bg-green-500/20 text-green-500' : 'bg-neutral-light/5 text-neutral-medium hover:text-white'}`}
-                              title={link.isActive ? 'Currently Active' : 'Set as Active'}
-                            >
-                              <Tv size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleDiscardVideoLink(link.id)} 
-                              className="p-2 text-neutral-medium hover:text-red-500 transition-colors rounded-lg hover:bg-neutral-light/5"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
           {activeAdminTab === 'content' && (
             <div className="space-y-6 animate-fade-in pt-[30px]">
               <h1 className="font-display font-extrabold text-2xl tracking-tight text-white mb-6">Homepage Content</h1>
