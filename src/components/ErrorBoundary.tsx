@@ -47,19 +47,19 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-red-400 font-bold">System Exception Safeguard</span>
-              <h1 className="text-2xl font-bold tracking-tight font-display">Kernel Panicked Smoothly</h1>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-red-400 font-bold">Application Error</span>
+              <h1 className="text-2xl font-bold tracking-tight font-display">Something Went Wrong</h1>
               <p className="text-sm text-slate-400 max-w-md mx-auto">
-                An unexpected client-side rendering exception has been isolated. GLASSEA compliance engines have halted the interface gracefully.
+                An unexpected error occurred while rendering this page. You can reload the page or return to the homepage.
               </p>
             </div>
 
-            {/* Simulated Debug Console */}
+            {/* Debug Console */}
             {self.state.error && (
               <div className="text-left bg-black/50 rounded-2xl p-4 border border-slate-800 font-mono text-xs text-slate-300 space-y-2 max-h-48 overflow-y-auto shadow-inner">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-2 mb-2 text-red-400 font-bold uppercase tracking-wider text-[10px]">
                   <Terminal className="w-3.5 h-3.5" />
-                  <span>Isolated Thread Stacktrace</span>
+                  <span>Error Details</span>
                 </div>
                 <p className="font-bold text-red-300">{self.state.error.toString()}</p>
                 {self.state.errorInfo?.componentStack && (
@@ -76,14 +76,14 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
-                Retry Terminal
+                Reload Page
               </button>
               <button
                 onClick={this.handleReset}
                 className="w-full sm:w-auto px-5 py-3 rounded-xl bg-primary hover:bg-primary-dark text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <Home className="w-4 h-4" />
-                Return to Nexus Home
+                Return to Homepage
               </button>
             </div>
           </div>
