@@ -18,7 +18,7 @@ interface AdminDashboardProps {
   loading: boolean;
 }
 
-export default function AdminDashboard({
+export function AdminDashboard({
   courses,
   onCourseApproved,
   userEmail,
@@ -729,3 +729,5 @@ export default function AdminDashboard({
     </div>
   );
 }
+
+export default AdminDashboard;
