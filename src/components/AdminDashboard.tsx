@@ -29,10 +29,11 @@ export default function AdminDashboard({
   // Dynamic metrics pulled from Express stats API
   const [dbUsers, setDbUsers] = useState<User[]>([]);
   const [dbPurchases, setDbPurchases] = useState<Purchase[]>([]);
+  const [adminRevenueData, setAdminRevenueData] = useState<any[]>([]);
   const [metrics, setMetrics] = useState({
-    revenue: 3500000,
-    studentsCount: 154,
-    totalTransactions: 32
+    revenue: 0,
+    studentsCount: 0,
+    totalTransactions: 0
   });
 
   const [statsLoading, setStatsLoading] = useState(true);
@@ -64,22 +65,6 @@ export default function AdminDashboard({
         links.push({ id: doc.id, ...doc.data() });
       });
 
-      // If absolutely empty, seed with the default one
-      if (links.length === 0) {
-        const defaultLink = {
-          id: 'default-yt-link',
-          title: 'Master Blockchain Security audit',
-          url: 'https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-',
-          isActive: true,
-          createdAt: new Date().toISOString()
-        };
-        try {
-          await setDoc(doc(db, "video_links", defaultLink.id), defaultLink);
-          links.push(defaultLink);
-        } catch (seedErr) {
-          console.warn("Could not seed default video link:", seedErr);
-        }
-      }
       setVideoLinks(links);
     } catch (err) {
       console.error("Could not fetch video links from Firestore:", err);
@@ -252,6 +237,7 @@ export default function AdminDashboard({
       let totalRevenue = 0;
       let totalTransactions = 0;
       const uniqueUsers = new Set<string>();
+      const monthlyStats: Record<string, number> = {};
 
       purchasesSnap.forEach((doc) => {
         const p = { id: doc.id, ...doc.data() } as Purchase;
@@ -260,18 +246,34 @@ export default function AdminDashboard({
           totalRevenue += (p.amount || 0);
           totalTransactions += 1;
           uniqueUsers.add(p.userId);
+
+          const date = new Date(p.createdAt || Date.now());
+          const monthName = date.toLocaleString('default', { month: 'short' });
+          monthlyStats[monthName] = (monthlyStats[monthName] || 0) + (p.amount || 0);
         }
       });
 
+      const chartData = Object.keys(monthlyStats).map(month => ({
+        name: month,
+        Earnings: monthlyStats[month]
+      }));
+
       setDbPurchases(purchasesData);
+      setAdminRevenueData(chartData);
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      const usersData: User[] = [];
+      usersSnap.forEach(doc => {
+        usersData.push({ id: doc.id, ...doc.data() } as User);
+      });
+      setDbUsers(usersData);
+
       setMetrics({
         revenue: totalRevenue,
-        studentsCount: uniqueUsers.size,
+        studentsCount: usersData.length || uniqueUsers.size,
         totalTransactions: totalTransactions
       });
       
-      // Keep users list empty or fetch if needed, but metrics are updated
-      setDbUsers([]);
     } catch (e) {
       console.error("Failed to fetch admin stats from Firestore", e);
     } finally {
@@ -354,13 +356,7 @@ export default function AdminDashboard({
   const pendingCourses = courses.filter(c => !c.isApproved);
   const approvedCourses = courses.filter(c => c.isApproved);
 
-  // Render Site analytics data mockups
-  const adminRevenueData = [
-    { name: 'Core Technology', Earnings: 1250000 },
-    { name: 'SaaS Design', Earnings: 950000 },
-    { name: 'AI Workflows', Earnings: 1850000 },
-    { name: 'Quantitative Fin', Earnings: 640000 },
-  ];
+  // Remove hardcoded revenue chart data
 
   return (
     <div className="min-h-screen text-left flex flex-col bg-neutral-bg pb-24" id="admin-dashboard-root">
