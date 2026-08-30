@@ -130,19 +130,19 @@ export default function StudentDashboard({
                   <h1 className="font-display font-extrabold text-2xl text-neutral-dark">{profileName}</h1>
                   <span className="text-[10px] bg-primary/20 text-primary-light px-2 py-0.5 rounded font-mono font-bold tracking-wider uppercase">STUDENT PASS</span>
                 </div>
-                <p className="text-xs text-neutral-medium font-mono">{profileEmail} • Registered Scholar</p>
+                <p className="text-xs text-neutral-medium font-mono">{profileEmail} • Enrolled Student</p>
               </div>
             </div>
 
             {/* Quick stats panel */}
             <div className="flex flex-wrap gap-4 md:gap-6">
               <div className="bg-neutral-light/5 border border-white/5 px-4 py-3 rounded-xl text-left font-mono min-w-[120px]">
-                <span className="block text-[10px] text-neutral-medium uppercase tracking-wider">Locker Items</span>
+                <span className="block text-[10px] text-neutral-medium uppercase tracking-wider">Enrolled Courses</span>
                 <span className="text-xl font-bold text-neutral-dark">{purchasedCourses.length} Courses</span>
               </div>
               <div className="bg-neutral-light/5 border border-white/5 px-4 py-3 rounded-xl text-left font-mono min-w-[120px]">
-                <span className="block text-[10px] text-neutral-medium uppercase tracking-wider">Unlocked Credentials</span>
-                <span className="text-xl font-bold text-accent-alt">{certificates.length} verified</span>
+                <span className="block text-[10px] text-neutral-medium uppercase tracking-wider">Certificates</span>
+                <span className="text-xl font-bold text-accent-alt">{certificates.length} earned</span>
               </div>
               <div className="bg-neutral-light/5 border border-white/5 px-4 py-3 rounded-xl text-left font-mono min-w-[120px]">
                 <span className="block text-[10px] text-neutral-medium uppercase tracking-wider">Learning Streak</span>
@@ -175,17 +175,17 @@ export default function StudentDashboard({
         {/* ================= TAB 1: ACCOMPANY COURSES ================= */}
         {activeTab === 'courses' && (
           <div className="mt-8 space-y-6" id="student-dashboard-courses-tab">
-            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">Current Syllabi In Locker</h2>
+            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">My Enrolled Courses</h2>
             
             {purchasedCourses.length === 0 ? (
               <div className="p-12 text-center bg-neutral-light/5 rounded-2xl border border-white/[0.05] space-y-4">
                 <AlertCircle className="h-8 w-8 text-neutral-medium mx-auto" />
-                <span className="block text-xs text-neutral-medium">You don't own any premium courses yet. Browse catalog to lock-in credentials!</span>
+                <span className="block text-xs text-neutral-medium">You haven't enrolled in any courses yet. Browse our catalog to get started!</span>
                 <button
                   onClick={() => onNavigate('courses')}
                   className="px-4 py-2 bg-gradient-to-r from-primary via-primary-light to-accent text-black text-xs font-bold font-display rounded-lg cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all"
                 >
-                  Explore Advanced Catalog
+                  Explore All Courses
                 </button>
               </div>
             ) : (
@@ -299,17 +299,17 @@ export default function StudentDashboard({
         {/* ================= TAB: WISHLIST ================= */}
         {activeTab === 'wishlist' && (
           <div className="mt-8 space-y-6" id="student-dashboard-wishlist-tab">
-            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">Staged Curricula Wishlist</h2>
+            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">My Wishlist</h2>
             
             {wishlistCourses.length === 0 ? (
               <div className="p-12 text-center bg-neutral-light/5 rounded-2xl border border-white/[0.05] space-y-4">
                 <Heart className="h-8 w-8 text-neutral-medium mx-auto" />
-                <span className="block text-xs text-neutral-medium text-center">Your academic wishlist is currently empty.</span>
+                <span className="block text-xs text-neutral-medium text-center">Your wishlist is currently empty.</span>
                 <button
                   onClick={() => onNavigate('courses')}
                   className="px-4 py-2 bg-[#1d4ed8] text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-[#1e40af] inline-block"
                 >
-                  Explore Certified Curriculum
+                  Explore Courses
                 </button>
               </div>
             ) : (
@@ -365,16 +365,16 @@ export default function StudentDashboard({
         {activeTab === 'certificates' && (
           <div className="mt-8 space-y-6" id="student-dashboard-certificates-tab">
             <div className="mb-4">
-              <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase">Cryptographically Verified Credentials</h2>
+              <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase">Verified Certificates</h2>
               <p className="text-xs text-neutral-medium mt-1">
-                Earn verifiable graduation credentials by passing the interactive lesson chapter quizzes correctly.
+                Earn certificates of completion by finishing courses and passing chapter quizzes.
               </p>
             </div>
 
             {certificates.length === 0 ? (
               <div className="bg-neutral-light/5 p-12 text-center rounded-2xl border border-white/[0.05] space-y-4">
                 <Award className="h-8 w-8 text-neutral-medium mx-auto" />
-                <span className="block text-xs text-neutral-medium">No certificates awarded yet. Pass 100% of any course quiz to unlock direct cryptographic credentials!</span>
+                <span className="block text-xs text-neutral-medium">No certificates earned yet. Complete all lessons and quizzes to earn your certificate!</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -388,24 +388,24 @@ export default function StudentDashboard({
                         <Award className="h-4.5 w-4.5 text-accent animate-pulse" />
                       </div>
                       <h4 className="font-display font-bold text-sm text-neutral-dark group-hover:text-primary transition-colors">
-                        Certificate of Graduation
+                        Certificate of Completion
                       </h4>
                       <p className="text-xs text-neutral-dark font-mono bg-neutral-light/5 p-2 rounded truncate">
                         Recipient: {cert.recipientName}
                       </p>
                       <p className="text-[11px] text-neutral-medium leading-relaxed">
-                        For successfully mastering course criteria in <span className="text-accent-alt">{cert.courseTitle}</span>.
+                        For successfully completing the course: <span className="text-accent-alt">{cert.courseTitle}</span>.
                       </p>
                     </div>
 
                     <div className="pt-3 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-neutral-medium uppercase">Sec Code: {cert.verificationCode.substring(11)}</span>
+                      <span className="text-neutral-medium uppercase">Code: {cert.verificationCode.substring(0, 10)}</span>
                       <button 
                         onClick={() => setSelectedCert(cert)}
                         className="text-primary hover:text-primary-light flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
                       >
                         <Eye className="h-3 w-3" />
-                        View Credential
+                        View Certificate
                       </button>
                     </div>
                   </div>
@@ -442,12 +442,12 @@ export default function StudentDashboard({
         {/* ================= TAB 4: ACCOUNT SETTINGS ================= */}
         {activeTab === 'settings' && (
           <div className="mt-8 max-w-2xl text-left" id="student-dashboard-settings-tab">
-            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">Scholar Configuration</h2>
+            <h2 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase mb-4">Student Profile Settings</h2>
             
             <form onSubmit={handleSaveSettings} className="glass-panel p-6 rounded-2xl space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 font-mono text-left">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-medium uppercase tracking-wider">Full Scholar Name</label>
+                  <label className="text-[10px] font-bold text-neutral-medium uppercase tracking-wider">Full Name</label>
                   <input 
                     type="text" 
                     value={profileName}
@@ -457,7 +457,7 @@ export default function StudentDashboard({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-medium uppercase tracking-wider">Secure Ledger Email</label>
+                  <label className="text-[10px] font-bold text-neutral-medium uppercase tracking-wider">Email Address</label>
                   <input 
                     type="text" 
                     value={profileEmail}
@@ -468,27 +468,17 @@ export default function StudentDashboard({
                 </div>
               </div>
 
-              <div className="space-y-3 font-mono border-t border-white/[0.05] pt-4">
-                <h3 className="text-[10px] font-bold tracking-widest uppercase text-neutral-medium">Credential Verification Service</h3>
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="check-ledger" defaultChecked className="rounded border-white/10 bg-secondary" />
-                  <label htmlFor="check-ledger" className="text-xs text-neutral-medium leading-relaxed">
-                    Automatically synchronize completed quizzes metadata onto verifiable blockchain ledger hashes.
-                  </label>
-                </div>
-              </div>
-
               <div className="pt-4 flex items-center justify-between">
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-gradient-to-r from-primary via-primary-light to-accent text-black font-display font-bold text-sm rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  Save settings
+                  Save Settings
                 </button>
                 {saveSuccess && (
                   <span className="text-xs font-mono text-accent-alt flex items-center gap-1.5 animate-pulse">
                     <CheckCircle className="h-4 w-4" />
-                    Ledger config saved successfully!
+                    Profile settings saved successfully!
                   </span>
                 )}
               </div>
@@ -497,7 +487,14 @@ export default function StudentDashboard({
         )}
 
         {/* ================= TAB 5: ANALYTICS ================= */}
-        {activeTab === 'analytics' && <Analytics /> }
+        {activeTab === 'analytics' && (
+          <Analytics 
+            purchasedCourses={purchasedCourses}
+            certificates={certificates}
+            streak={streak}
+            activities={activities}
+          />
+        )}
 
         {activeTab === 'activities' && (
           <div className="mt-8 space-y-6">
@@ -543,7 +540,7 @@ export default function StudentDashboard({
 
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b border-white/[0.08] pb-4">
-                <span className="text-[9px] font-mono text-primary uppercase tracking-widest font-extrabold">SECURE LEDGER: DIPLOMA VERIFICATION INSTANCE</span>
+                <span className="text-[9px] font-mono text-primary uppercase tracking-widest font-extrabold">CERTIFICATE VERIFICATION</span>
                 <button 
                   onClick={() => setSelectedCert(null)}
                   className="text-neutral-medium hover:text-neutral-dark text-xs font-mono font-bold uppercase tracking-wider cursor-pointer"
@@ -553,9 +550,9 @@ export default function StudentDashboard({
               </div>
 
               <div className="space-y-2 mt-4">
-                <span className="text-xs uppercase tracking-widest text-accent-alt font-mono font-bold">LUMINARY NEXUS ACADEMY</span>
-                <span className="block text-2xl sm:text-3xl font-display font-extrabold text-neutral-dark">CERTIFICATE OF GRADUATION</span>
-                <p className="text-xs text-neutral-medium uppercase tracking-wider font-mono">This cryptographic pass is awarded to:</p>
+                <span className="text-xs uppercase tracking-widest text-accent-alt font-mono font-bold">GLASSEA TECH</span>
+                <span className="block text-2xl sm:text-3xl font-display font-extrabold text-neutral-dark">CERTIFICATE OF COMPLETION</span>
+                <p className="text-xs text-neutral-medium uppercase tracking-wider font-mono">This certificate is awarded to:</p>
               </div>
 
               <div className="py-4 border-b border-accent/20 max-w-md mx-auto">
@@ -566,7 +563,7 @@ export default function StudentDashboard({
 
               <div className="space-y-3">
                 <p className="text-sm text-neutral-medium leading-relaxed">
-                  In recognition of successful, high-passing audit marks completed within our specialized developer curriculum:
+                  In recognition of successfully completing the curriculum and requirements for:
                 </p>
                 <span className="block font-display font-bold text-lg text-neutral-dark">
                   {selectedCert.courseTitle}
@@ -575,11 +572,11 @@ export default function StudentDashboard({
 
               <div className="grid grid-cols-2 gap-8 pt-8 font-mono border-t border-white/[0.08] text-xs text-left">
                 <div>
-                  <span className="block text-[9px] text-neutral-medium uppercase">DATE GRANTED</span>
+                  <span className="block text-[9px] text-neutral-medium uppercase">DATE ISSUED</span>
                   <span className="font-bold text-neutral-dark">{selectedCert.issuedAt}</span>
                 </div>
                 <div className="text-right">
-                  <span className="block text-[9px] text-neutral-medium uppercase">LEDGER IDENTIFIER</span>
+                  <span className="block text-[9px] text-neutral-medium uppercase">CERTIFICATE ID</span>
                   <span className="font-bold text-accent font-mono">{selectedCert.verificationCode}</span>
                 </div>
               </div>
