@@ -172,3 +172,5 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
     </footer>
   );
 }
+
+export default Footer;
