@@ -22,7 +22,7 @@ interface StudentDashboardProps {
   activities?: Notification[];
 }
 
-export default function StudentDashboard({
+export function StudentDashboard({
   purchasedCourses,
   purchasedCourseIds,
   onSelectCourse,
@@ -589,3 +589,5 @@ export default function StudentDashboard({
     </div>
   );
 }
+
+export default StudentDashboard;
