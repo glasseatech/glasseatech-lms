@@ -12,7 +12,7 @@ interface AnalyticsProps {
   activities?: Notification[];
 }
 
-export default function Analytics({
+export function Analytics({
   purchasedCourses = [],
   certificates = [],
   streak = 0,
@@ -249,3 +249,5 @@ export default function Analytics({
     </div>
   );
 }
+
+export default Analytics;
