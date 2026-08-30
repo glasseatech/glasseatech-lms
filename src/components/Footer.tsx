@@ -126,7 +126,7 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                 />
               ) : (
                 <span className="block font-semibold text-neutral-400 mb-2 uppercase tracking-wide">
-                  {siteConfig?.footerAboutTitle || 'About Luminary'}
+                  {siteConfig?.footerAboutTitle || 'About GLASSEA'}
                 </span>
               )}
 
@@ -139,7 +139,7 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                 />
               ) : (
                 <p className="text-neutral-500 leading-relaxed text-left text-xs max-w-md">
-                  {siteConfig?.footerAboutText || 'Luminary is a high-performance learning platform tailored for engineers, designers, and web architects. We focus on practical, advanced curriculum that builds real-world mastery.'}
+                  {siteConfig?.footerAboutText || 'GLASSEA is a high-performance learning platform tailored for engineers, designers, and web architects. We focus on practical, advanced curriculum that builds real-world mastery.'}
                 </p>
               )}
             </div>
@@ -159,10 +159,10 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                     placeholder="Copyright Notice"
                   />
                 ) : (
-                  siteConfig?.footerCopyright || '© 2026 LUMINARY ACADEMY GROUP LTD. ALL RIGHTS PRESERVED'
+                  siteConfig?.footerCopyright || '© 2026 GLASSEA TECH LTD. ALL RIGHTS RESERVED'
                 )}
                 <span className="block text-[9px] text-neutral-400 mt-1">
-                  Security Protocol Verified • Paystack Secured • AIS Sandbox
+                  Security Protocol Verified • Paystack Secured
                 </span>
               </div>
             </div>
