@@ -1,1087 +1,479 @@
-import { useState, useEffect } from 'react';
-import { Sparkles, AlertCircle, RefreshCw, Layers, Award, Cpu, Flame, CheckCircle2, WifiOff, Keyboard, ShieldAlert } from 'lucide-react';
-import Navbar from './components/Navbar.tsx';
-import Homepage from './components/Homepage.tsx';
-import StudentDashboard from './components/StudentDashboard.tsx';
-import CoursePlayer from './components/CoursePlayer.tsx';
-import InstructorDashboard from './components/InstructorDashboard.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
-import AuthModal from './components/AuthModal.tsx';
-import PaystackModal from './components/PaystackModal.tsx';
-import CartWishlistDrawers from './components/CartWishlistDrawers.tsx';
-import CustomCursor from './components/CustomCursor.tsx';
-import { Course, Certificate, UserRole, Notification } from './types.ts';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth, handleRedirectResult } from './firebase.ts';
+import React, { useState } from 'react';
+import { Mail, Lock, ShieldCheck, User, Sparkles, HelpCircle, ArrowRight, Check } from 'lucide-react';
+import { signInWithGoogle } from '../firebase.ts';
 
-export default function App() {
-  // Offline & Accessibility States
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+interface AuthModalProps {
+  onAuthComplete: (userEmail: string, role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN', userName?: string) => void;
+  onClose: () => void;
+  adminOnly?: boolean;
+}
 
-  // Connection monitoring & keyboard listeners
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOffline(false);
-      triggerToast('Internet connection restored.');
-    };
-    const handleOffline = () => {
-      setIsOffline(true);
-      triggerToast('You are currently offline.');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Shift+K to scroll to Catalog
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        handleNavigation('catalog-section');
-      }
-      // Ctrl+Shift+D to open Dashboard
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        handleNavigation('student-dashboard');
-      }
-      // Ctrl+Shift+H for shortcut panel toggle
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'h') {
-        e.preventDefault();
-        setShowKeyboardHints(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
-  // Global Session state
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    return (localStorage.getItem('glassea_user_role') as UserRole) || 'STUDENT';
-  });
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('glassea_user_email') || '');
-  const [userName, setUserName] = useState(() => localStorage.getItem('glassea_user_name') || '');
-  const [activePage, setActivePage] = useState<string>(() => {
-    if (window.location.hash === '#admin') {
-      return 'admin-dashboard';
-    }
-    return localStorage.getItem('glassea_active_page') || 'home';
-  });
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(() => localStorage.getItem('glassea_selected_course_id') || null);
-  const selectedCourse = courses.find((c) => c.id === selectedCourseId) || null;
-
-  useEffect(() => {
-    if (selectedCourseId) {
-      localStorage.setItem('glassea_selected_course_id', selectedCourseId);
-    } else {
-      localStorage.removeItem('glassea_selected_course_id');
-    }
-  }, [selectedCourseId]);
-
-  // Purchased courses list (initially empty)
-  const [purchasedCourseIds, setPurchasedCourseIds] = useState<string[]>([]);
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
+export function AuthModal({
+  onAuthComplete,
+  onClose,
+  adminOnly
+}: AuthModalProps) {
+  const [authView, setAuthView] = useState<'signin' | 'signup' | 'forgot' | 'verify'>('signin');
   
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Fields state
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [selectedRole, setSelectedRole] = useState<'STUDENT' | 'INSTRUCTOR' | 'ADMIN'>(adminOnly ? 'ADMIN' : 'STUDENT');
 
-  // Listen for Firebase Auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+  // Success/Error logs
+  const [alertSuccess, setAlertSuccess] = useState('');
+  const [alertError, setAlertError] = useState('');
+
+  const handleSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    // In our full-stack simulation, logging in as specific emails sets roles automatically!
+    let targetRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' = selectedRole;
+    if (email.includes('mercer@') || email.includes('admin@')) {
+      targetRole = 'ADMIN';
+    } else if (email.includes('carter@') || email.includes('inst@')) {
+      targetRole = 'INSTRUCTOR';
+    }
+
+    onAuthComplete(email, targetRole);
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setAlertError('');
+      const user = await signInWithGoogle();
       if (user && user.email) {
-        const email = user.email;
-        const name = user.displayName || user.email.split('@')[0];
-        let role: UserRole = 'STUDENT';
-        if (email.includes('admin') || email.includes('mercer')) {
-          role = 'ADMIN';
-        } else if (email.includes('inst') || email.includes('carter')) {
-          role = 'INSTRUCTOR';
+        let targetRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' = selectedRole;
+        if (user.email.includes('admin') || user.email.includes('mercer')) {
+          targetRole = 'ADMIN';
+        } else if (user.email.includes('inst') || user.email.includes('carter')) {
+          targetRole = 'INSTRUCTOR';
         }
-        
-        setUserEmail(email);
-        setUserName(name);
-        setCurrentRole(role);
-        localStorage.setItem('glassea_user_email', email);
-        localStorage.setItem('glassea_user_name', name);
-        localStorage.setItem('glassea_user_role', role);
-
-        try {
-          const { doc, setDoc } = await import("firebase/firestore");
-          const { db } = await import("./firebase.ts");
-          await setDoc(doc(db, "users", email), {
-            email,
-            role,
-            name,
-            lastLogin: new Date().toISOString()
-          }, { merge: true });
-        } catch (err) {
-          console.error("Failed to sync user to Firestore", err);
-        }
+        onAuthComplete(user.email, targetRole, user.displayName || undefined);
       }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Handle redirect result from Google Sign-In (for hosts with strict COOP headers like Render)
-  useEffect(() => {
-    handleRedirectResult().catch(console.error);
-  }, []);
-
-  const markNotificationAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
-
-  // Modals visibility state
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [selectedCheckoutCourse, setSelectedCheckoutCourse] = useState<Course | null>(null);
-  const [directPaymentPlan, setDirectPaymentPlan] = useState<{ name: string; price: number } | null>(null);
-  const [pendingCheckoutCourse, setPendingCheckoutCourse] = useState<Course | null>(null);
-  const [pendingCheckoutCart, setPendingCheckoutCart] = useState<boolean>(false);
-
-  // Global Toast HUD banner notifications
-  const [toastMessage, setToastMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  // Cart & Wishlist state synchronized with localStorage
-  const [cartCourseIds, setCartCourseIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('glassea_cart') || localStorage.getItem('knoova_cart');
-      return saved ? JSON.parse(saved) : [];
-    } catch (_) {
-      return [];
-    }
-  });
-
-  const [wishlistCourseIds, setWishlistCourseIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('glassea_wishlist') || localStorage.getItem('knoova_wishlist');
-      return saved ? JSON.parse(saved) : [];
-    } catch (_) {
-      return [];
-    }
-  });
-
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
-
-  // Global Site Config state (colors, hero text) with localStorage caching to prevent flash
-  const [siteConfig, setSiteConfig] = useState<any>(() => {
-    try {
-      const cached = localStorage.getItem('glassea_site_config');
-      if (cached) return JSON.parse(cached);
-    } catch (_) {}
-    return {
-      primaryColor: '#00D9FF',
-      heroTitle: 'Master the Architecture of',
-      heroTitleHighlight: 'Futuristic Tech',
-      heroTitleSuffix: 'Solutions',
-      heroSubtitle: 'GLASSEA is a high-performance learning platform tailored for engineers, designers, and web architects. Build practical, real-world mastery.',
-      catalogTag: 'FEATURED COURSES',
-      catalogTitle: 'Explore Learning Pathways',
-      featuresTitle: 'Why Choose GLASSEA',
-      featuresSubtitle: 'We provide an interactive, high-fidelity platform designed for mastering modern software engineering.',
-      footerAboutTitle: 'About GLASSEA',
-      footerAboutText: 'GLASSEA is a high-performance learning platform tailored for engineers, designers, and web architects.',
-      footerCopyright: '© 2026 GLASSEA TECH. ALL RIGHTS RESERVED'
-    };
-  });
-
-  useEffect(() => {
-    const fetchSiteConfig = async () => {
-      try {
-        const { doc, getDoc } = await import("firebase/firestore");
-        const { db } = await import("./firebase.ts");
-        const snap = await getDoc(doc(db, "site_config", "main"));
-        if (snap.exists()) {
-          const data = snap.data();
-          setSiteConfig(data);
-          try {
-            localStorage.setItem('glassea_site_config', JSON.stringify(data));
-          } catch (_) {}
-          if (data.primaryColor) {
-            document.documentElement.style.setProperty('--primary', data.primaryColor);
-            document.documentElement.style.setProperty('--primary-light', data.primaryColor);
-          }
-          if (data.accentColor) {
-            document.documentElement.style.setProperty('--accent', data.accentColor);
-            document.documentElement.style.setProperty('--accent-light', data.accentColor);
-          }
-          if (data.neutralBg) {
-            document.documentElement.style.setProperty('--neutral-bg', data.neutralBg);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching site_config:", err);
-      }
-    };
-    fetchSiteConfig();
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-    document.body.classList.add('dark');
-    localStorage.setItem('glassea_theme', 'dark');
-  }, []);
-
-  const toggleTheme = () => {};
-
-  const [isOpenCart, setIsOpenCart] = useState(false);
-  const [isOpenWishlist, setIsOpenWishlist] = useState(false);
-  const [isCheckingOutCart, setIsCheckingOutCart] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('glassea_cart', JSON.stringify(cartCourseIds));
-  }, [cartCourseIds]);
-
-  useEffect(() => {
-    localStorage.setItem('glassea_wishlist', JSON.stringify(wishlistCourseIds));
-  }, [wishlistCourseIds]);
-
-  // Sync activePage with localStorage and window location hash
-  useEffect(() => {
-    localStorage.setItem('glassea_active_page', activePage);
-    if (activePage === 'admin-dashboard') {
-      if (window.location.hash !== '#admin') {
-        window.history.pushState(null, '', '#admin');
-      }
-    } else {
-      if (window.location.hash === '#admin') {
-        window.history.pushState(null, '', window.location.pathname + window.location.search);
-      }
-    }
-  }, [activePage]);
-
-  // Listen for hashchange events to handle back/forward navigation or typing URL hashes manually
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      if (hash === '#admin') {
-        setActivePage('admin-dashboard');
-      } else if (activePage === 'admin-dashboard') {
-        setActivePage('home');
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activePage]);
-
-  const handleToggleCart = (courseId: string) => {
-    const isOwned = purchasedCourseIds.includes(courseId);
-    if (isOwned) {
-      triggerToast('You already own this course.');
-      return;
-    }
-
-    setCartCourseIds((prev) => {
-      const exists = prev.includes(courseId);
-      if (exists) {
-        triggerToast('Removed from cart.');
-        return prev.filter((id) => id !== courseId);
-      } else {
-        const course = courses.find((c) => c.id === courseId);
-        triggerToast(`"${course?.title || 'Course'}" added to your cart.`);
-        return [...prev, courseId];
-      }
-    });
-  };
-
-  const handleToggleWishlist = (courseId: string) => {
-    setWishlistCourseIds((prev) => {
-      const exists = prev.includes(courseId);
-      if (exists) {
-        triggerToast('Removed from wishlist.');
-        return prev.filter((id) => id !== courseId);
-      } else {
-        const course = courses.find((c) => c.id === courseId);
-        triggerToast(`"${course?.title || 'Course'}" added to wishlist.`);
-        return [...prev, courseId];
-      }
-    });
-  };
-
-  const handleRemoveFromCart = (courseId: string) => {
-    setCartCourseIds((prev) => prev.filter((id) => id !== courseId));
-    triggerToast('Course removed from cart.');
-  };
-
-  const handleRemoveFromWishlist = (courseId: string) => {
-    setWishlistCourseIds((prev) => prev.filter((id) => id !== courseId));
-    triggerToast('Course removed from wishlist.');
-  };
-
-  const handleMoveToCart = (courseId: string) => {
-    setWishlistCourseIds((prev) => prev.filter((id) => id !== courseId));
-    setCartCourseIds((prev) => {
-      if (!prev.includes(courseId)) return [...prev, courseId];
-      return prev;
-    });
-    const course = courses.find((c) => c.id === courseId);
-    triggerToast(`"${course?.title || 'Course'}" moved to cart.`);
-  };
-
-  const handleMoveToWishlist = (courseId: string) => {
-    setCartCourseIds((prev) => prev.filter((id) => id !== courseId));
-    setWishlistCourseIds((prev) => {
-      if (!prev.includes(courseId)) return [...prev, courseId];
-      return prev;
-    });
-    const course = courses.find((c) => c.id === courseId);
-    triggerToast(`"${course?.title || 'Course'}" moved to wishlist.`);
-  };
-
-  const handleClearCart = () => {
-    setCartCourseIds([]);
-    triggerToast('Cart cleared.');
-  };
-
-  const handleClearWishlist = () => {
-    setWishlistCourseIds([]);
-    triggerToast('Wishlist cleared.');
-  };
-
-  const handleCheckoutCart = () => {
-    if (!userEmail) {
-      setPendingCheckoutCart(true);
-      setIsOpenCart(false);
-      setShowAuthModal(true);
-      triggerToast('Please sign in or create an account to proceed to checkout.');
-      return;
-    }
-    setIsOpenCart(false);
-    setIsCheckingOutCart(true);
-  };
-
-  const syncPurchasedCourses = async (email: string) => {
-    if (!email) return;
-    try {
-      const { doc, getDoc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("./firebase.ts");
-      const docRef = doc(db, "purchasedCourseIds", email);
-      const docSnap = await getDoc(docRef);
-
-      let firestoreCourseIds: string[] = [];
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (Array.isArray(data.courseIds)) {
-          firestoreCourseIds = data.courseIds;
-        }
-      }
-
-      // Merge with express stats fallback if they have purchases there
-      let expressCourseIds: string[] = [];
-      try {
-        const statsRes = await fetch('/api/stats');
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          if (statsData.purchases) {
-            expressCourseIds = statsData.purchases
-              .filter((p: any) => p.userId === email && p.status === 'success')
-              .map((p: any) => p.courseId);
-          }
-        }
-      } catch (e) {
-        console.warn('Could not load fallback stats:', e);
-      }
-
-      const merged = Array.from(new Set([...firestoreCourseIds, ...expressCourseIds]));
-      setPurchasedCourseIds(merged);
-
-      // If document doesn't exist but we had purchases from express, initialize the document in Firestore
-      if (!docSnap.exists() && merged.length > 0) {
-        await setDoc(docRef, { courseIds: merged, updatedAt: new Date().toISOString() });
-      }
-    } catch (err) {
-      console.warn("Failed to sync purchased courses with Firestore:", err);
+    } catch (error) {
+      console.error('Google Sign In failed', error);
+      setAlertError('Google Sign In failed. Please try again.');
     }
   };
 
-  const addPurchasedCoursesToFirestore = async (email: string, newCourseIds: string[]) => {
-    if (!email || newCourseIds.length === 0) return;
-    try {
-      const { runTransaction, doc } = await import("firebase/firestore");
-      const { db } = await import("./firebase.ts");
-
-      const docRef = doc(db, "purchasedCourseIds", email);
-
-      await runTransaction(db, async (transaction) => {
-        const docSnap = await transaction.get(docRef);
-        let existingIds: string[] = [];
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (Array.isArray(data.courseIds)) {
-            existingIds = data.courseIds;
-          }
-        }
-
-        const merged = Array.from(new Set([...existingIds, ...newCourseIds]));
-        transaction.set(docRef, {
-          courseIds: merged,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      });
-
-      // Update local state and trigger sync
-      await syncPurchasedCourses(email);
-    } catch (err) {
-      console.error("Firestore transaction for purchase failed:", err);
-      // Fallback state update
-      setPurchasedCourseIds((prev) => Array.from(new Set([...prev, ...newCourseIds])));
-      triggerToast("Secure sandbox checkout completed. Cloud synchronization pending.");
-    }
+  const handleSignUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAlertSuccess('Account created successfully! Verification code sent to your email.');
+    setTimeout(() => {
+      setAuthView('verify');
+    }, 1500);
   };
 
-  const handleCartPaymentSuccess = async (ref: string) => {
-    triggerToast(`Success! Verified multi-item course enrollment. Reference: ${ref}.`);
-    setPurchasedCourseIds((prev) => Array.from(new Set([...prev, ...cartCourseIds])));
-    if (userEmail) {
-      await addPurchasedCoursesToFirestore(userEmail, cartCourseIds);
-    }
-    setCartCourseIds([]);
-    setIsCheckingOutCart(false);
-    fetchMainDatabase();
-    setActivePage('student-dashboard');
+  const handleForgot = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAlertSuccess('Password reset instructions sent to your email.');
+    setTimeout(() => {
+      setAlertSuccess('');
+      setAuthView('signin');
+    }, 2000);
   };
 
-  // Listen to purchasedCourseIds, cartCourseIds and wishlistCourseIds document in Firestore for true real-time synchronization
-  useEffect(() => {
-    if (!userEmail) {
-      setPurchasedCourseIds([]);
-      setCartCourseIds([]);
-      setWishlistCourseIds([]);
-      return;
-    }
-
-    let unsubscribePurchased: (() => void) | undefined;
-    let unsubscribeCart: (() => void) | undefined;
-    let unsubscribeWishlist: (() => void) | undefined;
-
-    const setupListeners = async () => {
-      try {
-        const { doc, onSnapshot } = await import("firebase/firestore");
-        const { db } = await import("./firebase.ts");
-
-        // Sync initial state (existing function already handles purchasing, 
-        // I should also fetch cart/wishlist initial state here)
-        await syncPurchasedCourses(userEmail);
-        
-        // Fetch cart/wishlist initial state (could be simpler than syncPurchasedCourses if no express fallback)
-        // I'll just load them directly
-        const { getDoc } = await import("firebase/firestore");
-        const cartRef = doc(db, "carts", userEmail);
-        const wishlistRef = doc(db, "wishlists", userEmail);
-        
-        const cartSnap = await getDoc(cartRef);
-        if (cartSnap.exists()) {
-          setCartCourseIds(cartSnap.data().courseIds || []);
-        }
-        
-        const wishlistSnap = await getDoc(wishlistRef);
-        if (wishlistSnap.exists()) {
-          setWishlistCourseIds(wishlistSnap.data().courseIds || []);
-        }
-
-        // Setup real-time listeners
-        const purchasedRef = doc(db, "purchasedCourseIds", userEmail);
-        unsubscribePurchased = onSnapshot(purchasedRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (Array.isArray(data.courseIds)) {
-              setPurchasedCourseIds((prev) => {
-                if (JSON.stringify(prev) === JSON.stringify(data.courseIds)) return prev;
-                return data.courseIds;
-              });
-            }
-          }
-        });
-
-        unsubscribeCart = onSnapshot(cartRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (Array.isArray(data.courseIds)) {
-              setCartCourseIds((prev) => {
-                if (JSON.stringify(prev) === JSON.stringify(data.courseIds)) return prev;
-                return data.courseIds;
-              });
-            }
-          }
-        });
-
-        unsubscribeWishlist = onSnapshot(wishlistRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (Array.isArray(data.courseIds)) {
-              setWishlistCourseIds((prev) => {
-                if (JSON.stringify(prev) === JSON.stringify(data.courseIds)) return prev;
-                return data.courseIds;
-              });
-            }
-          }
-        });
-
-      } catch (err) {
-        console.warn("Could not setup real-time firestore listeners:", err);
-      }
-    };
-
-    setupListeners();
-
-    return () => {
-      if (unsubscribePurchased) unsubscribePurchased();
-      if (unsubscribeCart) unsubscribeCart();
-      if (unsubscribeWishlist) unsubscribeWishlist();
-    };
-  }, [userEmail]);
-
-  // Sync cart and wishlist changes to Firestore
-  useEffect(() => {
-    if (!userEmail) return;
-    
-    const saveCartAndWishlist = async () => {
-      try {
-        const { doc, setDoc } = await import("firebase/firestore");
-        const { db } = await import("./firebase.ts");
-
-        const cartRef = doc(db, "carts", userEmail);
-        await setDoc(cartRef, { courseIds: cartCourseIds, updatedAt: new Date().toISOString() }, { merge: true });
-
-        const wishlistRef = doc(db, "wishlists", userEmail);
-        await setDoc(wishlistRef, { courseIds: wishlistCourseIds, updatedAt: new Date().toISOString() }, { merge: true });
-        
-      } catch (err) {
-        console.warn("Failed to sync cart/wishlist to Firestore:", err);
-      }
-    };
-    
-    // Use a small debounce or just sync directly. For now, sync directly as it is small data.
-    saveCartAndWishlist();
-  }, [cartCourseIds, wishlistCourseIds, userEmail]);
-
-  // On boot load catalog lists
-  useEffect(() => {
-    fetchMainDatabase();
-  }, [activePage]);
-
-  // Fetch real-time notifications for the current role
-  useEffect(() => {
-    if (!userEmail) {
-      setNotifications([]);
-      return;
-    }
-    const userId = userEmail;
-    fetch(`/api/notifications?userId=${userId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Status " + res.status);
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setNotifications(prev => {
-            const merged = [...data, ...prev];
-            const unique = Array.from(new Map(merged.map(item => [item.id, item])).values());
-            return unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          });
-        }
-      })
-      .catch((e) => console.warn('Could not load notifications from local API (will retry on navigate):', e));
-  }, [userEmail, activePage]);
-
-  const fetchMainDatabase = async () => {
-    setLoading(true);
-
-    try {
-      const { collection, getDocs, doc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("./firebase.ts");
-
-      let coursesData: any[] = [];
-      try {
-        // Load courses from Firestore
-        const querySnapshot = await getDocs(collection(db, "courses"));
-        querySnapshot.forEach((doc) => {
-          coursesData.push({ id: doc.id, ...doc.data() });
-        });
-      } catch (firestoreErr) {
-        console.warn("Could not read courses from Firestore:", firestoreErr);
-      }
-
-      // Fetch counts from Express backend (Firestore-backed counts)
-      try {
-        const countsRes = await fetch('/api/courses/counts');
-        if (countsRes.ok) {
-          const countsData = await countsRes.json();
-          coursesData = coursesData.map(c => ({
-            ...c,
-            studentsCount: countsData[c.id] ?? c.studentsCount
-          }));
-        }
-      } catch (countsErr) {
-        console.warn("Could not fetch real course counts:", countsErr);
-      }
-
-      setCourses(coursesData.filter(c => c !== null));
-
-    } catch (err) {
-      console.warn('Unhandled exception in fetchMainDatabase:', err);
-    } finally {
-      // Also load stats from mock Express backend
-      try {
-        const statsRes = await fetch('/api/stats');
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          if (statsData.purchases) {
-            const userPurchased = userEmail
-              ? statsData.purchases
-                .filter((p: any) => p.userId === userEmail && p.status === 'success')
-                .map((p: any) => p.courseId)
-              : [];
-            setPurchasedCourseIds((prev) => Array.from(new Set([...prev, ...userPurchased])));
-          }
-          if (Array.isArray(statsData.certificates)) {
-            const userCerts = userEmail
-              ? statsData.certificates.filter((c: any) => c.userId === userEmail)
-              : [];
-            setCertificates(userCerts);
-          } else {
-            setCertificates([]);
-          }
-        }
-      } catch (e) {
-        console.warn('Could not load stats fallback data:', e);
-      }
-      setLoading(false);
-    }
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAuthComplete(email, selectedRole, fullName);
   };
-
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setNotifications(prev => [
-      {
-        id: Date.now().toString() + Math.random().toString(),
-        userId: userEmail || 'system',
-        title: 'Notification',
-        message: msg,
-        isRead: false,
-        createdAt: new Date().toISOString()
-      },
-      ...prev
-    ].slice(0, 20)); // Keep the 20 most recent alerts
-    setTimeout(() => setToastMessage(''), 4500);
-  };
-
-  const handleAuthSuccess = async (email: string, role: UserRole, name?: string) => {
-    setUserEmail(email);
-    setCurrentRole(role);
-    setShowAuthModal(false);
-    
-    let finalName = '';
-    if (name) {
-      finalName = name;
-    } else {
-      if (email === 'amina@premium.lms') {
-        finalName = 'Amina Bello';
-      } else if (email === 'carter@premium.lms') {
-        finalName = 'Dr. Carter';
-      } else if (email === 'mercer@premium.lms') {
-        finalName = 'Admin David';
-      } else {
-        finalName = email.split('@')[0];
-      }
-    }
-    setUserName(finalName);
-    localStorage.setItem('glassea_user_email', email);
-    localStorage.setItem('glassea_user_name', finalName);
-    localStorage.setItem('glassea_user_role', role);
-
-    try {
-      const { doc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("./firebase.ts");
-      await setDoc(doc(db, "users", email), {
-        email,
-        role,
-        name: finalName,
-        lastLogin: new Date().toISOString()
-      }, { merge: true });
-    } catch (err) {
-      console.error("Failed to sync user to Firestore", err);
-    }
-
-    triggerToast(`Authenticated successfully! Active role profile: ${role}`);
-    
-    if (pendingCheckoutCourse) {
-      setSelectedCheckoutCourse(pendingCheckoutCourse);
-      setPendingCheckoutCourse(null);
-    } else if (pendingCheckoutCart) {
-      setIsCheckingOutCart(true);
-      setPendingCheckoutCart(false);
-    } else {
-      // Auto route based on logged-in role
-      if (role === 'ADMIN') {
-        setActivePage('admin-dashboard');
-      } else if (role === 'INSTRUCTOR') {
-        setActivePage('instructor-dashboard');
-      } else {
-        setActivePage('student-dashboard');
-      }
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      const { logout } = await import('./firebase.ts');
-      await logout();
-    } catch (e) {
-      console.warn('Firebase logout failed', e);
-    }
-    setUserEmail('');
-    setUserName('');
-    setCurrentRole('STUDENT');
-    setPurchasedCourseIds([]);
-    setCertificates([]);
-    localStorage.removeItem('glassea_user_email');
-    localStorage.removeItem('glassea_user_name');
-    localStorage.removeItem('glassea_user_role');
-    triggerToast('Logged out successfully.');
-    setActivePage('home');
-  };
-
-  const handleSelectCourseAction = (courseId: string) => {
-    const course = courses.find((c) => c.id === courseId);
-    if (!course) return;
-
-    const isOwned = purchasedCourseIds.includes(courseId);
-    if (isOwned) {
-      setSelectedCourseId(course.id);
-      setActivePage('course-player');
-    } else {
-      if (!userEmail) {
-        setPendingCheckoutCourse(course);
-        setShowAuthModal(true);
-        triggerToast('Please sign in or create an account to enroll in this course.');
-        return;
-      }
-      // Trigger Paystack secure purchase
-      setSelectedCheckoutCourse(course);
-    }
-  };
-
-  const handlePlanCheckoutAction = (planName: string, price: number) => {
-    // Treat pricing plans as direct tuition lock-ins
-    setDirectPaymentPlan({ name: planName, price });
-  };
-
-  const handlePaymentSuccess = async (reference: string) => {
-    if (selectedCheckoutCourse) {
-      triggerToast(`Payment successful! You are now enrolled in: ${selectedCheckoutCourse.title}.`);
-      setPurchasedCourseIds((prev) => Array.from(new Set([...prev, selectedCheckoutCourse.id])));
-      if (userEmail) {
-        await addPurchasedCoursesToFirestore(userEmail, [selectedCheckoutCourse.id]);
-      }
-    } else if (directPaymentPlan) {
-      triggerToast(`Payment successful! ${directPaymentPlan.name} membership activated.`);
-      const allCourseIds = courses.map((c) => c.id);
-      setPurchasedCourseIds(allCourseIds);
-      if (userEmail) {
-        await addPurchasedCoursesToFirestore(userEmail, allCourseIds);
-      }
-    }
-
-    setSelectedCheckoutCourse(null);
-    setDirectPaymentPlan(null);
-    fetchMainDatabase();
-    setActivePage('student-dashboard');
-  };
-
-  const handleNewCertificateGranted = (title: string) => {
-    triggerToast(`Congratulations! You earned a certificate for: ${title}`);
-    fetchMainDatabase();
-  };
-
-  const handleNavigation = (page: string) => {
-    // Role-based navigation restrictions
-    if (currentRole === 'ADMIN' && page !== 'admin-dashboard') {
-      triggerToast('Admins can only access the Admin Dashboard.');
-      setActivePage('admin-dashboard');
-      return;
-    }
-
-    const isScrollable = ['why-us-section', 'courses', 'catalog-section'].includes(page);
-    if (isScrollable) {
-      setActivePage('home');
-      setTimeout(() => {
-        let targetId = page;
-        if (page === 'courses') targetId = 'catalog-section';
-        const el = document.getElementById(targetId);
-        el?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else {
-      setActivePage(page);
-    }
-  };
-
-  const purchasedCourses = courses.filter((c) => purchasedCourseIds.includes(c.id));
 
   return (
-    <div className="min-h-screen bg-neutral-bg text-neutral-dark flex flex-col relative" id="app-viewport-terminal">
+    <div className="fixed inset-0 bg-secondary-dark/95 z-50 flex items-center justify-center p-4 overflow-y-auto" id="auth-portal-barrier">
       
-      {/* Top sticky navbar */}
-      <Navbar
-        currentRole={currentRole}
-        onRoleChange={setCurrentRole}
-        onNavigate={handleNavigation}
-        activePage={activePage}
-        userEmail={userEmail}
-        userName={userName}
-        cartCount={cartCourseIds.length}
-        wishlistCount={wishlistCourseIds.length}
-        notifications={notifications}
-        markNotificationAsRead={markNotificationAsRead}
-        isDarkMode={isDarkMode}
-        toggleTheme={toggleTheme}
-        onOpenCart={() => {
-          setIsOpenCart(true);
-          setIsOpenWishlist(false);
-        }}
-        onOpenWishlist={() => {
-          setIsOpenWishlist(true);
-          setIsOpenCart(false);
-        }}
-        onOpenAuth={() => setShowAuthModal(true)}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Layout Area */}
-      <main className="flex-1">
+      <div className="w-full max-w-md bg-secondary-dark border border-primary/30 rounded-3xl p-8 text-center bg-neutral-bg glow-neon-cyan relative overflow-hidden" id="auth-terminal-casing">
+        {/* Glow decoration */}
+        <div className="absolute top-0 left-0 w-20 h-20 bg-primary/10 rounded-full blur-xl -z-10"></div>
         
-        {activePage === 'home' && (
-          <Homepage
-            courses={courses}
-            isLoading={loading}
-            onSelectCourse={handleSelectCourseAction}
-            onNavigate={handleNavigation}
-            purchasedCourseIds={purchasedCourseIds}
-            cartCourseIds={cartCourseIds}
-            wishlistCourseIds={wishlistCourseIds}
-            onToggleCart={handleToggleCart}
-            onToggleWishlist={handleToggleWishlist}
-            siteConfig={siteConfig}
-            currentRole={currentRole}
-          />
-        )}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center border-b border-white/[0.08] pb-4">
+            <span className="text-[10px] font-mono text-primary uppercase tracking-widest font-bold">Secure Access Gateway</span>
+            <button 
+              onClick={onClose} 
+              className="text-neutral-medium hover:text-neutral-dark text-[11px] font-mono uppercase tracking-wider cursor-pointer"
+            >
+              Skip
+            </button>
+          </div>
 
-        {!loading && activePage === 'student-dashboard' && (
-          <StudentDashboard
-            purchasedCourses={purchasedCourses}
-            purchasedCourseIds={purchasedCourseIds}
-            onSelectCourse={handleSelectCourseAction}
-            certificates={certificates}
-            onNavigate={handleNavigation}
-            userEmail={userEmail}
-            userName={userName}
-            wishlistCourses={courses.filter((c) => wishlistCourseIds.includes(c.id))}
-            onMoveWishlistItemToCart={handleMoveToCart}
-            onRemoveFromWishlist={handleRemoveFromWishlist}
-            loading={loading}
-            activities={notifications}
-          />
-        )}
+          {/* ================= VIEW 1: SIGN IN ================= */}
+          {authView === 'signin' && (
+            <form onSubmit={handleSignIn} className="space-y-5 text-left" id="auth-signin-form">
+              <div className="space-y-1 text-center">
+                <span className="text-xs uppercase tracking-widest text-[#00D9FF] font-mono font-bold">GLASSEA TECH</span>
+                <h3 className="text-xl font-display font-extrabold text-white">Sign In to Your Account</h3>
+              </div>
+              
+              <div className="pt-2 pb-1">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full py-3 bg-neutral-light dark:bg-neutral-light text-gray-900 dark:text-neutral-dark font-display font-bold text-xs rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-medium/10 transition flex items-center justify-center gap-2 cursor-pointer border border-gray-200 dark:border-white/10"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  Sign In with Google
+                </button>
+              </div>
 
-        {!loading && activePage === 'course-player' && selectedCourse && (
-          <CoursePlayer
-            course={selectedCourse}
-            userEmail={userEmail}
-            userName={userName}
-            onCertificateEarned={handleNewCertificateGranted}
-            onNavigate={handleNavigation}
-          />
-        )}
-
-        {!loading && activePage === 'instructor-dashboard' && (
-          <InstructorDashboard
-            courses={courses}
-            onCourseCreated={fetchMainDatabase}
-            userEmail={userEmail}
-            loading={loading}
-          />
-        )}
-
-        {!loading && activePage === 'admin-dashboard' && (
-          currentRole === 'ADMIN' ? (
-            <AdminDashboard
-              courses={courses}
-              onCourseApproved={fetchMainDatabase}
-              userEmail={userEmail}
-              loading={loading}
-            />
-          ) : (
-            <div className="min-h-[85vh] flex items-center justify-center px-4 py-20 bg-neutral-bg">
-              <div className="max-w-md w-full bg-secondary dark:bg-[#151D30] rounded-3xl border border-red-500/20 shadow-2xl p-8 text-center space-y-6 animate-fadeIn">
-                <div className="mx-auto h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <ShieldAlert className="h-8 w-8 text-red-500 animate-pulse" />
+              {alertError && (
+                <div className="p-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-xs text-center font-mono animate-fade-in">
+                  {alertError}
                 </div>
-                <div className="space-y-2">
-                  <h2 className="font-display font-black text-xl text-neutral-dark tracking-tight">Compliance Terminal Restricted</h2>
-                  <p className="text-xs text-neutral-medium leading-relaxed">
-                    Access to this system area is restricted to authorized administrative compliance officers. Please authenticate using verified credentials to enter the management dashboard.
-                  </p>
+              )}
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10"></div>
                 </div>
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-full py-3 bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white font-extrabold rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-red-500/20 text-xs"
-                    id="admin-auth-btn"
+                <div className="relative flex justify-center text-[10px] font-mono">
+                  <span className="bg-neutral-bg px-2 text-neutral-medium uppercase tracking-wider">Or continue with email</span>
+                </div>
+              </div>
+
+              <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">Portal Gateway Mode</label>
+                  <div className={`grid ${adminOnly ? 'grid-cols-1' : 'grid-cols-2'} gap-2 bg-secondary-dark/60 p-1 rounded-xl border border-white/10`}>
+                    {!adminOnly && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('STUDENT')}
+                          className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                            selectedRole === 'STUDENT'
+                              ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                              : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                          }`}
+                        >
+                          Student
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('INSTRUCTOR')}
+                          className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                            selectedRole === 'INSTRUCTOR'
+                              ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                              : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                          }`}
+                        >
+                          Instructor
+                        </button>
+                      </>
+                    )}
+                    {adminOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('ADMIN')}
+                        className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                          selectedRole === 'ADMIN'
+                            ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                            : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                        }`}
+                      >
+                        Admin
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">Email Address</label>
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@domain.com"
+                      className="w-full bg-secondary-dark/60 border border-white/10 rounded-xl p-3 pl-10 text-xs text-white focus:outline-none focus:border-primary"
+                      required
+                    />
+                    <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-neutral-medium" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] text-neutral-medium uppercase font-bold">Access Password Key</label>
+                    <button 
+                      type="button"
+                      onClick={() => setAuthView('forgot')}
+                      className="text-[9px] text-primary hover:underline hover:text-primary-light"
+                    >
+                      Reset password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-secondary-dark/60 border border-white/10 rounded-xl p-3 pl-10 text-xs text-white focus:outline-none focus:border-primary"
+                      required
+                    />
+                    <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-neutral-medium" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-3 text-mono">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-primary via-primary-light to-accent text-black font-display font-bold text-xs rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  Authorize Profile
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                
+                <span className="block text-center text-xs text-neutral-medium">
+                  New scholar applicant?{' '}
+                  <button 
+                    type="button"
+                    onClick={() => setAuthView('signup')} 
+                    className="text-primary font-bold hover:underline"
                   >
-                    Authenticate as Administrator
+                    Register custom account
                   </button>
-                  <button
-                    onClick={() => handleNavigation('home')}
-                    className="w-full py-3 bg-neutral-light border border-neutral-medium/10 text-neutral-dark font-semibold rounded-xl hover:bg-neutral-light/80 transition-colors cursor-pointer text-xs"
-                    id="admin-back-btn"
-                  >
-                    Return to Student Terminal
-                  </button>
+                </span>
+              </div>
+            </form>
+          )}
+
+          {/* ================= VIEW 2: SIGN UP ================= */}
+          {authView === 'signup' && (
+            <form onSubmit={handleSignUp} className="space-y-5 text-left" id="auth-signup-form">
+              <div className="space-y-1 text-center">
+                <span className="text-xs uppercase tracking-widest text-primary font-mono font-bold">GLASSEA REGISTRATION</span>
+                <h3 className="text-xl font-display font-bold text-white">Create Your Account</h3>
+              </div>
+              
+              <div className="pt-2 pb-1">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full py-3 bg-neutral-light dark:bg-neutral-light text-gray-900 dark:text-neutral-dark font-display font-bold text-xs rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-medium/10 transition flex items-center justify-center gap-2 cursor-pointer border border-gray-200 dark:border-white/10"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  Sign Up with Google
+                </button>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] font-mono">
+                  <span className="bg-neutral-bg px-2 text-neutral-medium uppercase tracking-wider">Or continue with email</span>
                 </div>
               </div>
-            </div>
-          )
-        )}
 
-      </main>
+              <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">Portal Enrollment Mode</label>
+                  <div className={`grid ${adminOnly ? 'grid-cols-1' : 'grid-cols-2'} gap-2 bg-secondary-dark/60 p-1 rounded-xl border border-white/10`}>
+                    {!adminOnly && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('STUDENT')}
+                          className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                            selectedRole === 'STUDENT'
+                              ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                              : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                          }`}
+                        >
+                          Student
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('INSTRUCTOR')}
+                          className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                            selectedRole === 'INSTRUCTOR'
+                              ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                              : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                          }`}
+                        >
+                          Instructor
+                        </button>
+                      </>
+                    )}
+                    {adminOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('ADMIN')}
+                        className={`py-1.5 text-center text-[10px] font-bold font-mono uppercase rounded-lg transition-all cursor-pointer ${
+                          selectedRole === 'ADMIN'
+                            ? 'bg-gradient-to-r from-primary via-primary-light to-accent text-black shadow'
+                            : 'text-neutral-medium hover:text-white bg-transparent border-none'
+                        }`}
+                      >
+                        Admin
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-      {/* ================= MODAL: SECURE AUTHENTICATION DIALOG ================= */}
-      {showAuthModal && (
-        <AuthModal
-          onAuthComplete={handleAuthSuccess}
-          onClose={() => setShowAuthModal(false)}
-          adminOnly={activePage === 'admin-dashboard'}
-        />
-      )}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">
+                    {selectedRole === 'INSTRUCTOR' ? 'Instructor Full Name' : 'Scholar Full Name'}
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-secondary-dark/60 border border-white/10 rounded-xl p-3 pl-10 text-xs text-white focus:outline-none focus:border-primary"
+                      required
+                    />
+                    <User className="absolute left-3.5 top-3.5 h-4 w-4 text-neutral-medium" />
+                  </div>
+                </div>
 
-      {/* ================= MODAL: SECURE PAYSTACK CHECKOUT (COURSE) ================= */}
-      {selectedCheckoutCourse && (
-        <PaystackModal
-          amount={selectedCheckoutCourse.price}
-          email={userEmail}
-          userName={userName}
-          courseTitle={selectedCheckoutCourse.title}
-          courseId={selectedCheckoutCourse.id}
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentClose={() => setSelectedCheckoutCourse(null)}
-        />
-      )}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">
+                    {selectedRole === 'INSTRUCTOR' ? 'Instructor Email Address' : 'Admission Email Address'}
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-secondary-dark/60 border border-white/10 rounded-xl p-3 pl-10 text-xs text-white focus:outline-none focus:border-primary"
+                      required
+                    />
+                    <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-neutral-medium" />
+                  </div>
+                </div>
+              </div>
 
-      {/* ================= MODAL: SECURE PAYSTACK CHECKOUT (LIFEPASS PLAN) ================= */}
-      {directPaymentPlan && (
-        <PaystackModal
-          amount={directPaymentPlan.price}
-          email={userEmail}
-          userName={userName}
-          courseTitle={`${directPaymentPlan.name} Admission Membership`}
-          courseIds={courses.map((c) => c.id)}
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentClose={() => setDirectPaymentPlan(null)}
-        />
-      )}
+              <div className="space-y-4 pt-3">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-primary via-primary-light to-accent text-black font-display font-bold text-xs rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  Generate Admission Code
+                </button>
+                
+                {alertSuccess && (
+                  <div className="p-2.5 bg-accent-alt/15 border border-accent-alt/30 rounded-lg text-accent-alt text-[10px] font-mono">
+                    {alertSuccess}
+                  </div>
+                )}
 
-      {/* ================= DRAWERS: CART & WISHLIST OVERLAYS ================= */}
-      <CartWishlistDrawers
-        isOpenCart={isOpenCart}
-        isOpenWishlist={isOpenWishlist}
-        onClose={() => {
-          setIsOpenCart(false);
-          setIsOpenWishlist(false);
-        }}
-        courses={courses}
-        cartCourseIds={cartCourseIds}
-        wishlistCourseIds={wishlistCourseIds}
-        purchasedCourseIds={purchasedCourseIds}
-        onRemoveFromCart={handleRemoveFromCart}
-        onRemoveFromWishlist={handleRemoveFromWishlist}
-        onMoveToCart={handleMoveToCart}
-        onMoveToWishlist={handleMoveToWishlist}
-        onClearCart={handleClearCart}
-        onClearWishlist={handleClearWishlist}
-        onCheckoutCart={handleCheckoutCart}
-      />
+                <span className="block text-center text-xs text-neutral-medium">
+                  Registered with a pass?{' '}
+                  <button 
+                    type="button"
+                    onClick={() => setAuthView('signin')} 
+                    className="text-primary font-bold hover:underline"
+                  >
+                    Secure Sign In
+                  </button>
+                </span>
+              </div>
+            </form>
+          )}
 
-      {/* ================= MODAL: SECURE CONSOLIDATED CART PAYSTACK CHECKOUT ================= */}
-      {isCheckingOutCart && (
-        <PaystackModal
-          amount={courses.filter((c) => cartCourseIds.includes(c.id)).reduce((sum, c) => sum + c.price, 0) + Math.floor(courses.filter((c) => cartCourseIds.includes(c.id)).reduce((sum, c) => sum + c.price, 0) * 0.05)}
-          email={userEmail}
-          userName={userName}
-          courseTitle="Consolidated Staged Cart"
-          courseIds={cartCourseIds}
-          onPaymentSuccess={handleCartPaymentSuccess}
-          onPaymentClose={() => setIsCheckingOutCart(false)}
-        />
-      )}
+          {/* ================= VIEW 3: FORGOT PASSWORD ================= */}
+          {authView === 'forgot' && (
+            <form onSubmit={handleForgot} className="space-y-5 text-left" id="auth-forgot-form">
+              <div className="space-y-1 text-center">
+                <span className="text-xs uppercase tracking-widest text-[#FF00AA] font-mono font-bold">PASSWORD RECOVERY</span>
+                <h3 className="text-xl font-display font-bold text-white">Reset Your Password</h3>
+              </div>
 
-      {/* ================= GLOBAL REAL-TIME HUD TOAST BANNER ================= */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 glass-panel border border-accent-alt rounded-2xl p-4 flex items-center gap-3 shadow-2xl animate-bounce glow-neon-emerald" id="toast-notif-bar">
-          <CheckCircle2 className="h-5 w-5 text-accent-alt animate-pulse shrink-0" />
-          <div className="text-xs font-mono text-left">
-            <span className="block font-bold text-neutral-dark uppercase tracking-wider">NOTIFICATION</span>
-            <span className="text-neutral-medium italic block mt-0.5">{toastMessage}</span>
-          </div>
+              <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold">Registered Email Address</label>
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-secondary-dark/60 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-3">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-accent text-neutral-dark font-display font-bold text-xs rounded-xl hover:bg-accent-light transition cursor-pointer"
+                >
+                  Send Reset Link
+                </button>
+
+                {alertSuccess && (
+                  <div className="p-2.5 bg-accent-alt/15 border border-accent-alt/30 rounded-lg text-accent-alt text-[10px] font-mono flex items-center gap-1">
+                    <Check className="h-4 w-4 shrink-0" />
+                    {alertSuccess}
+                  </div>
+                )}
+
+                <button 
+                  type="button" 
+                  onClick={() => setAuthView('signin')} 
+                  className="w-full text-center text-xs text-primary font-bold hover:underline mt-2"
+                >
+                  Return to Sign In
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ================= VIEW 4: CODE VERIFICATION ================= */}
+          {authView === 'verify' && (
+            <form onSubmit={handleVerify} className="space-y-5 text-left" id="auth-verify-form">
+              <div className="space-y-1 text-center">
+                <ShieldCheck className="h-10 w-10 text-accent-alt mx-auto animate-bounce" />
+                <h3 className="text-xl font-display font-bold text-white">Verify Your Account</h3>
+                <p className="text-xs text-neutral-medium">Enter the 6-digit code sent to your email.</p>
+              </div>
+
+              <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-neutral-medium uppercase font-bold text-center block">6-DIGIT VERIFICATION CODE</label>
+                  <input 
+                    type="text" 
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, ''))}
+                    className="w-full bg-secondary-dark/60 border border-white/20 rounded-xl p-3 text-lg font-bold text-center tracking-widest text-[#00FF9F] focus:outline-none focus:border-accent-alt"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-3">
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-primary via-primary-light to-accent text-black font-display font-bold text-xs rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  Create Account
+                </button>
+              </div>
+            </form>
+          )}
+
         </div>
-      )}
 
-      {/* ================= OFFLINE PERSISTENCE BANNER ================= */}
-      {isOffline && (
-        <div className="fixed bottom-4 left-4 z-50 glass-panel border border-red-500/30 rounded-2xl p-4 flex items-center gap-3 shadow-2xl glow-neon-pink max-w-sm animate-pulse" id="offline-notif-bar">
-          <WifiOff className="h-5 w-5 text-red-500 shrink-0" />
-          <div className="text-xs font-mono text-left">
-            <span className="block font-bold text-red-500 uppercase tracking-wider">OFFLINE MODE DETECTED</span>
-            <span className="text-neutral-medium text-[10px] block mt-0.5">Your changes will sync with local memory fallback automatically.</span>
-          </div>
-        </div>
-      )}
+      </div>
 
-      {/* ================= KEYBOARD ACCESSIBILITY PORTAL ================= */}
-      {showKeyboardHints && (
-        <div className="fixed inset-0 bg-neutral-bg/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowKeyboardHints(false)}>
-          <div className="w-full max-w-md bg-secondary dark:bg-neutral-bg border border-primary/20 rounded-3xl p-6 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-neutral-medium/10 pb-3">
-              <div className="flex items-center gap-2">
-                <Keyboard className="w-4 h-4 text-primary" />
-                <h3 className="font-bold text-sm text-neutral-dark font-mono uppercase tracking-wider">Keyboard Shortcuts Portal</h3>
-              </div>
-              <button onClick={() => setShowKeyboardHints(false)} className="text-xs text-neutral-medium hover:text-neutral-dark font-mono uppercase">Close</button>
-            </div>
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between items-center py-1.5 border-b border-neutral-medium/10">
-                <span className="text-neutral-medium">Go to Course Catalog</span>
-                <span className="bg-neutral-light border border-neutral-medium/10 px-2 py-0.5 rounded text-[10px] font-mono text-primary font-bold">Ctrl + Shift + K</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-neutral-medium/10">
-                <span className="text-neutral-medium">Open Student Dashboard</span>
-                <span className="bg-neutral-light border border-neutral-medium/10 px-2 py-0.5 rounded text-[10px] font-mono text-primary font-bold">Ctrl + Shift + D</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-neutral-medium/10">
-                <span className="text-neutral-medium">Toggle Shortcuts Help</span>
-                <span className="bg-neutral-light border border-neutral-medium/10 px-2 py-0.5 rounded text-[10px] font-mono text-primary font-bold">Ctrl + Shift + H</span>
-              </div>
-            </div>
-            <div className="bg-primary/5 rounded-2xl p-3 border border-primary/10 text-[11px] text-neutral-medium leading-relaxed">
-              <strong>Tip:</strong> These keys provide keyboard accessibility to navigate our virtual terminals quickly and efficiently without relying solely on cursor clicks.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Small subtle shortcuts HUD indicator in bottom-left footer corner */}
-      <button 
-        onClick={() => setShowKeyboardHints(true)} 
-        className="fixed bottom-6 left-6 z-40 p-2 rounded-full glass-panel border border-neutral-medium/10 hover:border-primary/40 text-neutral-medium hover:text-primary transition-all shadow-md group hidden sm:block"
-        title="Show Keyboard Shortcuts Portal"
-      >
-        <Keyboard className="w-4 h-4" />
-      </button>
-
-      <CustomCursor />
     </div>
   );
 }
+
+export default AuthModal;
