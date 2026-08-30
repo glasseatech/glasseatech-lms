@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 
-export default function AdminHomepageContent() {
+export function AdminHomepageContent() {
   const [activeSubTab, setActiveSubTab] = useState<'config' | 'features' | 'faqs'>('config');
   
   const [features, setFeatures] = useState<any[]>([]);
@@ -558,3 +558,5 @@ export default function AdminHomepageContent() {
     </div>
   );
 }
+
+export default AdminHomepageContent;
