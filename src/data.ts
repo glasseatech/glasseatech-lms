@@ -487,8 +487,8 @@ export const WHY_CHOOSE_US = [
     description: 'Simulate genuine NGN local payment experiences using custom-styled, secure Paystack sandbox gateway dialogues. Effortlessly and safely lock-in full course access, purchase modules, and register directly for catalog items.'
   },
   {
-    title: 'Cryptographic Achievement Certificates',
-    description: 'Earn grand academic achievements on GLASSEA. Unlock fully styled, verifiable cryptographic completion passes complete with downloadable PDF copies, suitable for professional portfolio showcases.'
+    title: 'Verified Certificates of Completion',
+    description: 'Earn industry-recognized certificates on GLASSEA. Unlock verified completion credentials with downloadable copies suitable for resumes and LinkedIn showcases.'
   },
   {
     title: 'Administrative Operations Hub',
@@ -541,11 +541,11 @@ export const PRICING_PLANS = [
     period: 'one-time lifetime lock',
     description: 'Unlock complete full syllabus, dynamic instructor video folders, downloadable attachments, and verified certificates.',
     features: [
-      'Total access to all premium cyber courses',
-      'All lesson source files and assets',
-      'Cryptographically verifiable certificates',
-      'AI-powered syllabus and summary generators',
-      'Lifetime course player updates'
+      'Total access to all premium courses',
+      'All lesson source files and downloadable resources',
+      'Verified certificates of completion',
+      'AI-powered course summaries and notes',
+      'Lifetime course updates'
     ],
     cta: 'Buy Professional License',
     popular: true
@@ -569,18 +569,18 @@ export const PRICING_PLANS = [
 export const FAQS = [
   {
     question: "Do I get a certificate upon completion?",
-    answer: "Yes. Upon successful completion of all modules and the final assessment, you will receive a cryptographically signed GLASSEA Certificate of Mastery, verifiable via our public ledger."
+    answer: "Yes! Upon successfully completing all lessons and passing the chapter quizzes, you will receive an official GLASSEA Certificate of Completion."
   },
   {
     question: "Is there lifetime access to the courses?",
-    answer: "Absolutely. Once purchased, you have indefinite access to the course materials, including all future curriculum updates and supplementary research logs."
+    answer: "Yes. Once enrolled, you have lifetime access to the course content, including all future updates and added resources."
   },
   {
-    question: "Can I access the curriculum on mobile devices?",
-    answer: "GLASSEA is built with a responsive viewport engine. You can seamlessly continue your research on any tablet or smartphone without losing focus or progress."
+    question: "Can I access the courses on mobile devices?",
+    answer: "Yes, GLASSEA is fully responsive. You can learn on any desktop, laptop, tablet, or smartphone on the go."
   },
   {
     question: "What kind of support is available?",
-    answer: "Students have access to the GLASSEA Research Forum and priority email support. Our faculty members also host periodic live seminar broadcasts for interactive Q&A."
+    answer: "You get access to course discussion forums, instructor Q&A, and dedicated email support whenever you need help."
   }
 ];
