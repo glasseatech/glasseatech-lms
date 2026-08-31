@@ -726,10 +726,10 @@ export function Homepage({
                           </div>
                           <span className="flex items-center gap-1">
                             <Star className="h-3.5 w-3.5 fill-accent text-accent" />
-                            <span className="font-bold text-neutral-dark">{course.rating?.toFixed(1) || '5.0'}</span>
-                            {course.reviewsCount !== undefined && (
-                              <span className="text-[10px] text-neutral-medium font-mono">({course.reviewsCount})</span>
-                            )}
+                            <span className="font-bold text-neutral-dark">{(course.rating || 5.0).toFixed(1)}</span>
+                            <span className="text-[10px] text-neutral-medium font-mono">
+                              ({course.reviewsCount !== undefined ? course.reviewsCount : 0})
+                            </span>
                           </span>
                         </div>
                         
