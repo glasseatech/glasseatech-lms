@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Trash2, ArrowRight, ShoppingCart, Heart, Sparkles, ShieldCheck, Plus, Check } from 'lucide-react';
 import { Course } from '../types.ts';
+import { useExchangeRate, DEFAULT_USD_NGN_RATE } from '../utils/currency.ts';
 
 interface CartWishlistDrawersProps {
   isOpenCart: boolean;
@@ -35,6 +36,9 @@ export default function CartWishlistDrawers({
   onClearWishlist,
   onCheckoutCart
 }: CartWishlistDrawersProps) {
+  const { rate: liveRate } = useExchangeRate();
+  const conversionRate = liveRate || DEFAULT_USD_NGN_RATE;
+
   if (!isOpenCart && !isOpenWishlist) return null;
 
   const currentDrawer = isOpenCart ? 'cart' : 'wishlist';
@@ -153,7 +157,7 @@ export default function CartWishlistDrawers({
                             {course.category}
                           </span>
                           <span className="text-xs font-mono font-bold text-neutral-medium">
-                            {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
+                            {(!course.price || course.price === 0) ? 'Free' : `$${course.price}`}
                           </span>
                         </div>
                         <h4 className="font-display font-semibold text-xs text-neutral-dark truncate leading-snug mt-0.5">
@@ -229,19 +233,24 @@ export default function CartWishlistDrawers({
                 <div className="space-y-1.5 text-xs text-neutral-medium">
                   <div className="flex justify-between">
                     <span>Academics Subtotal</span>
-                    <span className="font-mono text-neutral-dark">₦{(subtotal || 0).toLocaleString()}</span>
+                    <span className="font-mono text-neutral-dark">${(subtotal || 0).toLocaleString()} USD</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="flex items-center gap-1">
                       Academic Processing Fee
-                      <span className="px-1.5 py-0.2 bg-primary/10 text-primary uppercase text-[8px] font-mono rounded font-bold">5% VAT</span>
+                      <span className="px-1.5 py-0.2 bg-primary/10 text-primary uppercase text-[8px] font-mono rounded font-bold">5% Processing</span>
                     </span>
-                    <span className="font-mono text-neutral-dark">₦{(tax || 0).toLocaleString()}</span>
+                    <span className="font-mono text-neutral-dark">${(tax || 0).toLocaleString()} USD</span>
                   </div>
                   <div className="h-px bg-neutral-medium/15 my-2" />
                   <div className="flex justify-between items-center text-sm">
-                    <span className="font-bold text-neutral-dark">Grand Tuition Locked</span>
-                    <span className="font-mono font-black text-primary text-base">₦{(total || 0).toLocaleString()}</span>
+                    <span className="font-bold text-neutral-dark">Grand Tuition</span>
+                    <div className="text-right">
+                      <span className="font-mono font-black text-primary text-base block">${(total || 0).toLocaleString()} USD</span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-medium">
+                        ≈ ₦{Math.round((total || 0) * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()} NGN
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -255,7 +264,7 @@ export default function CartWishlistDrawers({
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 <p className="text-[9px] text-neutral-medium font-mono text-center uppercase tracking-wider">
-                  Verified security powered by Paystack Sandbox Gateway
+                  Verified security powered by Flutterwave Global Gateway
                 </p>
               </div>
             ) : (
