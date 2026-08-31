@@ -867,6 +867,9 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             siteConfig={siteConfig}
             currentRole={currentRole}
+            userEmail={userEmail}
+            userName={userName}
+            onCourseUpdated={fetchCourses}
           />
         )}
 
