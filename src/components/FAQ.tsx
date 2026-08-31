@@ -10,15 +10,32 @@ export function FAQ({ siteConfig }: { siteConfig?: any }) {
   useEffect(() => {
     const fetchFaqs = async () => {
       try {
+        // Try Express backend first
+        const apiRes = await fetch('/api/faqs').catch(() => null);
+        if (apiRes && apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (Array.isArray(apiData) && apiData.length > 0) {
+            const published = apiData
+              .filter((f: any) => f.isPublished !== false)
+              .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+            setFaqs(published);
+            return;
+          }
+        }
+
+        // Fallback to Firestore
         const { collection, getDocs } = await import("firebase/firestore");
         const { db } = await import("../firebase.ts");
         const snap = await getDocs(collection(db, "homepage_faqs"));
         const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (data.length > 0) {
-          setFaqs(data.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
+          const published = data
+            .filter((f: any) => f.isPublished !== false)
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          setFaqs(published);
         }
       } catch (err) {
-        console.error("Failed to fetch FAQs", err);
+        console.warn("Using fallback initial FAQs", err);
       }
     };
     fetchFaqs();
