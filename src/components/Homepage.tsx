@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Course, Instructor } from '../types.ts';
 import { TESTIMONIALS, WHY_CHOOSE_US, INSTRUCTORS } from '../data.ts';
+import { useExchangeRate, DEFAULT_USD_NGN_RATE } from '../utils/currency.ts';
 import CourseDetailModal from './CourseDetailModal.tsx';
 import { FAQ } from './FAQ.tsx';
 import { Footer } from './Footer.tsx';
@@ -26,6 +27,9 @@ interface HomepageProps {
   onToggleWishlist: (courseId: string) => void;
   siteConfig?: any;
   currentRole?: string;
+  userEmail?: string;
+  userName?: string;
+  onCourseUpdated?: () => void;
 }
 
 export function Homepage({
@@ -39,7 +43,10 @@ export function Homepage({
   onToggleCart,
   onToggleWishlist,
   siteConfig,
-  currentRole
+  currentRole,
+  userEmail,
+  userName,
+  onCourseUpdated
 }: HomepageProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(() => localStorage.getItem('glassea_category') || 'All');
   const [searchQuery, setSearchQuery] = useState<string>(() => localStorage.getItem('glassea_search') || '');
@@ -61,6 +68,7 @@ export function Homepage({
   const [bentoEditImageUrl, setBentoEditImageUrl] = useState('');
   const [isSavingBento, setIsSavingBento] = useState(false);
 
+  const { rate: liveRate } = useExchangeRate();
   const COURSES_PER_PAGE = 6;
 
   // Fetch dynamic content
@@ -79,7 +87,7 @@ export function Homepage({
         featureData.forEach((item: any) => {
           if (item.id.startsWith('bento')) {
             bentoMap[item.id] = item;
-          } else {
+          } else if (item.isActive !== false) {
             normalFeatures.push(item);
           }
         });
@@ -87,11 +95,30 @@ export function Homepage({
         if (normalFeatures.length > 0) {
           setFeatures(normalFeatures.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
         } else {
-          setFeatures(WHY_CHOOSE_US);
+          // Fallback to Express backend
+          const backendRes = await fetch('/api/features').catch(() => null);
+          if (backendRes && backendRes.ok) {
+            const apiData = await backendRes.json();
+            if (Array.isArray(apiData) && apiData.length > 0) {
+              setFeatures(apiData.filter((i: any) => i.isActive !== false));
+            } else {
+              setFeatures(WHY_CHOOSE_US);
+            }
+          } else {
+            setFeatures(WHY_CHOOSE_US);
+          }
         }
         setBentoFeatures(bentoMap);
       } catch (err) {
-        console.error("Failed to fetch homepage content", err);
+        console.warn("Falling back to API for features:", err);
+        fetch('/api/features')
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data) && data.length > 0) {
+              setFeatures(data.filter((i: any) => i.isActive !== false));
+            }
+          })
+          .catch(() => setFeatures(WHY_CHOOSE_US));
       }
     };
     fetchContent();
@@ -699,7 +726,10 @@ export function Homepage({
                           </div>
                           <span className="flex items-center gap-1">
                             <Star className="h-3.5 w-3.5 fill-accent text-accent" />
-                            <span className="font-bold text-neutral-dark">{course.rating}</span>
+                            <span className="font-bold text-neutral-dark">{course.rating?.toFixed(1) || '5.0'}</span>
+                            {course.reviewsCount !== undefined && (
+                              <span className="text-[10px] text-neutral-medium font-mono">({course.reviewsCount})</span>
+                            )}
                           </span>
                         </div>
                         
@@ -720,9 +750,16 @@ export function Homepage({
                       <div className="pt-4 border-t border-neutral-medium/10 flex items-center justify-between gap-4">
                         <div className="flex flex-col text-left">
                           <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-medium">TUITION</span>
-                          <span className="text-lg font-bold font-mono text-neutral-dark">
-                            {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
-                          </span>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-lg font-bold font-mono text-neutral-dark">
+                              {(!course.price || course.price === 0) ? 'Free' : `$${course.price}`}
+                            </span>
+                            {course.price > 0 && (
+                              <span className="text-[11px] font-mono text-emerald-400 font-medium">
+                                ≈ ₦{Math.round(course.price * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         
                         {isOwned ? (
@@ -875,6 +912,11 @@ export function Homepage({
         isOwned={selectedDetailCourse ? purchasedCourseIds.includes(selectedDetailCourse.id) : false}
         isInCart={selectedDetailCourse ? cartCourseIds.includes(selectedDetailCourse.id) : false}
         isWishlisted={selectedDetailCourse ? wishlistCourseIds.includes(selectedDetailCourse.id) : false}
+        userEmail={userEmail}
+        userName={userName}
+        onReviewSubmitted={() => {
+          if (onCourseUpdated) onCourseUpdated();
+        }}
         onToggleCart={() => {
           if (selectedDetailCourse) {
             onToggleCart(selectedDetailCourse.id);
