@@ -115,3 +115,18 @@ export interface SiteStats {
   totalCoursesCount: number;
   totalTransactions: number;
 }
+
+export interface CertificateRequest {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  studentEmail: string;
+  studentName: string;
+  instructorId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  approvedAt?: string;
+  verificationCode?: string;
+  notes?: string;
+}
+
