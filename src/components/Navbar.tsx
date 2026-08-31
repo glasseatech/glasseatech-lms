@@ -103,7 +103,7 @@ export default function Navbar({
           id="brand-logo"
         >
           <img
-            src="/glassea-logo.png"
+            src="./glassea-logo.png"
             alt="GLASSEA Logo"
             className="h-7 w-7 sm:h-8 sm:w-8 rounded-full object-cover shadow-lg select-none shrink-0"
             onError={(e) => {
