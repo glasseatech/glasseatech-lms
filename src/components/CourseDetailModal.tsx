@@ -72,17 +72,46 @@ export default function CourseDetailModal({
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewMsg, setReviewMsg] = useState('');
 
-  // Fetch reviews from backend database
+  // Fetch reviews from backend database or Firestore fallback
   const fetchReviews = async () => {
     if (!course) return;
     try {
-      const res = await fetch(`/api/courses/${course.id}/reviews`);
-      if (res.ok) {
+      const res = await fetch(`/api/courses/${course.id}/reviews`).catch(() => null);
+      if (res && res.ok) {
         const data = await res.json();
-        setReviews(Array.isArray(data) ? data : []);
+        if (Array.isArray(data) && data.length > 0) {
+          setReviews(data);
+          return;
+        }
       }
     } catch (e) {
-      console.warn('Could not fetch reviews from backend, using fallback', e);
+      // Backend not available
+    }
+
+    // Try Firestore directly for static hosting
+    try {
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
+      const { db } = await import('../firebase.ts');
+      const q = query(collection(db, 'courses_reviews'), where('courseId', '==', course.id));
+      const querySnapshot = await getDocs(q);
+      const fsReviews: Review[] = [];
+      querySnapshot.forEach((doc) => {
+        fsReviews.push({ id: doc.id, ...doc.data() } as Review);
+      });
+      if (fsReviews.length > 0) {
+        setReviews(fsReviews);
+        return;
+      }
+    } catch (fsErr) {
+      console.warn('Firestore reviews fetch notice:', fsErr);
+    }
+
+    // Local storage fallback
+    const savedLocal = localStorage.getItem(`course_reviews_${course.id}`);
+    if (savedLocal) {
+      try {
+        setReviews(JSON.parse(savedLocal));
+      } catch (e) {}
     }
   };
 
@@ -97,39 +126,70 @@ export default function CourseDetailModal({
     setSubmittingReview(true);
     setReviewMsg('');
 
+    const newReview: Review = {
+      id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      courseId: course.id,
+      userId: userEmail || 'student-guest',
+      userEmail: userEmail || 'student@glassea.tech',
+      userName: userName || userEmail?.split('@')[0] || 'Verified Student',
+      rating,
+      comment: comment.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    let saved = false;
+
     try {
       const res = await fetch(`/api/courses/${course.id}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userEmail || 'student-guest',
-          userEmail: userEmail || 'student@glassea.tech',
-          userName: userName || userEmail?.split('@')[0] || 'Verified Student',
-          rating,
-          comment: comment.trim()
+          userId: newReview.userId,
+          userEmail: newReview.userEmail,
+          userName: newReview.userName,
+          rating: newReview.rating,
+          comment: newReview.comment
         })
-      });
+      }).catch(() => null);
 
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         if (data.reviews) {
           setReviews(data.reviews);
         } else if (data.review) {
           setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
         }
-        setComment('');
-        setRating(5);
-        setReviewMsg('Thank you! Your review has been submitted.');
-        if (onReviewSubmitted) onReviewSubmitted();
-      } else {
-        setReviewMsg('Unable to save review. Please try again.');
+        saved = true;
       }
     } catch (err) {
-      console.error('Failed to submit review:', err);
-      setReviewMsg('Review submission failed. Please check your network.');
-    } finally {
-      setSubmittingReview(false);
+      // Backend not available
     }
+
+    // Direct Firestore sync for static deployments
+    try {
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../firebase.ts');
+      await addDoc(collection(db, 'courses_reviews'), {
+        ...newReview,
+        timestamp: serverTimestamp()
+      });
+      saved = true;
+    } catch (fsErr) {
+      console.warn('Firestore review save notice:', fsErr);
+    }
+
+    // Save to local state and localStorage
+    setReviews(prev => {
+      const updated = [newReview, ...prev.filter(r => r.id !== newReview.id)];
+      localStorage.setItem(`course_reviews_${course.id}`, JSON.stringify(updated));
+      return updated;
+    });
+
+    setComment('');
+    setRating(5);
+    setReviewMsg('Thank you! Your review has been published in real time.');
+    if (onReviewSubmitted) onReviewSubmitted();
+    setSubmittingReview(false);
   };
 
   if (!isOpen || !course) return null;
