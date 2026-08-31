@@ -72,6 +72,22 @@ export default function CourseDetailModal({
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewMsg, setReviewMsg] = useState('');
 
+  // Live rating aggregates — update instantly after a review is submitted
+  const [liveRating, setLiveRating] = useState<number | null>(null);
+  const [liveReviewCount, setLiveReviewCount] = useState<number | null>(null);
+
+  // Whenever reviews change, recalculate live rating
+  useEffect(() => {
+    if (reviews.length === 0) {
+      setLiveRating(null);
+      setLiveReviewCount(0);
+      return;
+    }
+    const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+    setLiveRating(Math.round(avg * 10) / 10);
+    setLiveReviewCount(reviews.length);
+  }, [reviews]);
+
   // Fetch reviews from backend database or Firestore fallback
   const fetchReviews = async () => {
     if (!course) return;
@@ -256,8 +272,10 @@ export default function CourseDetailModal({
               </span>
               <span className="text-[10px] font-semibold text-neutral-medium flex items-center gap-1">
                 <Star className="h-3.5 w-3.5 text-accent fill-accent" />
-                <span className="text-white font-bold text-xs">{course.rating}</span>
-                (GLASSEA Verified)
+                <span className="text-white font-bold text-xs">{liveRating ?? course.rating}</span>
+                <span className="text-neutral-medium/70">
+                  ({liveReviewCount !== null ? liveReviewCount : (course as any).reviewsCount || 0} reviews)
+                </span>
               </span>
             </div>
 
@@ -553,8 +571,13 @@ export default function CourseDetailModal({
 
               <div className="space-y-3">
                 <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Student Reviews ({reviews.length})
-                </h5>
+                Student Reviews ({liveReviewCount !== null ? liveReviewCount : reviews.length})
+                {liveRating !== null && (
+                  <span className="ml-2 text-amber-400 font-mono">
+                    ⭐ {liveRating}/5
+                  </span>
+                )}
+              </h5>
                 {reviews.length === 0 ? (
                   <p className="text-xs text-slate-400 italic p-4 bg-neutral-bg/60 rounded-xl border border-white/5">
                     No reviews yet. Be the first student to review this course!
