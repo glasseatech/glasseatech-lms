@@ -667,7 +667,7 @@ export function CoursePlayer({
             )}
 
             {/* DYNAMIC CERTIFICATE GRANTED / REQUEST BANNER */}
-            {progressPercentage === 100 && (
+            {allLessonsCompleted() && (
               <div className="p-8 rounded-3xl bg-gradient-to-br from-primary/15 via-accent/10 to-primary/5 border border-primary/30 relative overflow-hidden space-y-5 animate-fade-in">
                 <div className="absolute top-0 right-0 p-8 select-none opacity-10 pointer-events-none">
                   <Award className="h-48 w-48 text-primary" />
