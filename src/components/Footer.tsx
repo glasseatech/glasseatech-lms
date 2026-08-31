@@ -72,7 +72,7 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
           
           {/* Left Column */}
           <div className="md:col-span-3 space-y-6 text-left" id="footer-contact-block">
-            <div>
+            <div className="space-y-3">
               <span className="block text-xs font-semibold text-neutral-400 mb-2 uppercase tracking-wide">Contact</span>
               {isEditing ? (
                 <input 
@@ -83,9 +83,24 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                   placeholder="Email address"
                 />
               ) : (
-                <a href={`mailto:${siteConfig?.footerContactEmail || 'glasseatech@gmail.com'}`} className="text-sm font-medium text-neutral-dark hover:text-primary transition underline decoration-neutral-200 decoration-1">
-                  {siteConfig?.footerContactEmail || 'glasseatech@gmail.com'}
+                <a href={`mailto:${siteConfig?.contactEmail || siteConfig?.footerContactEmail || 'glasseatech@gmail.com'}`} className="block text-sm font-medium text-neutral-dark hover:text-primary transition underline decoration-neutral-200 decoration-1">
+                  {siteConfig?.contactEmail || siteConfig?.footerContactEmail || 'glasseatech@gmail.com'}
                 </a>
+              )}
+              {siteConfig?.contactPhone && (
+                <a href={`tel:${siteConfig.contactPhone}`} className="block text-xs text-neutral-medium hover:text-primary transition">
+                  📞 {siteConfig.contactPhone}
+                </a>
+              )}
+              {siteConfig?.contactAddress && (
+                <p className="text-xs text-neutral-medium leading-relaxed">
+                  📍 {siteConfig.contactAddress}
+                </p>
+              )}
+              {siteConfig?.contactHours && (
+                <p className="text-xs text-neutral-medium">
+                  🕐 {siteConfig.contactHours}
+                </p>
               )}
             </div>
             
@@ -100,10 +115,17 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                 </div>
               ) : (
                 <>
-                  <a href="#instagram" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial1 || 'Instagram'}</a>
-                  <a href="#linkedin" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial2 || 'LinkedIn'}</a>
-                  <a href="#behance" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial3 || 'Behance'}</a>
-                  <a href="#dribbble" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial4 || 'Dribbble'}</a>
+                  {siteConfig?.socialTwitter && <a href={siteConfig.socialTwitter} target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">𝕏 Twitter / X</a>}
+                  {siteConfig?.socialLinkedin && <a href={siteConfig.socialLinkedin} target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">in LinkedIn</a>}
+                  {siteConfig?.socialYoutube && <a href={siteConfig.socialYoutube} target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">▶ YouTube</a>}
+                  {siteConfig?.socialInstagram && <a href={siteConfig.socialInstagram} target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">📷 Instagram</a>}
+                  {siteConfig?.socialWhatsapp && <a href={siteConfig.socialWhatsapp} target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">💬 WhatsApp</a>}
+                  {!siteConfig?.socialTwitter && !siteConfig?.socialLinkedin && (
+                    <>
+                      <a href={siteConfig?.footerSocial1 ? '#' : '#instagram'} className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial1 || 'Instagram'}</a>
+                      <a href="#linkedin" className="block text-xs text-neutral-medium hover:text-neutral-dark transition">{siteConfig?.footerSocial2 || 'LinkedIn'}</a>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -162,7 +184,7 @@ export function Footer({ siteConfig, currentRole }: FooterProps) {
                   siteConfig?.footerCopyright || '© 2026 GLASSEA TECH LTD. ALL RIGHTS RESERVED'
                 )}
                 <span className="block text-[9px] text-neutral-400 mt-1">
-                  Security Protocol Verified • Paystack Secured
+                  Security Protocol Verified • Flutterwave Secured
                 </span>
               </div>
             </div>
