@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Shield, User, ChevronDown, Sparkles, Award, Menu, X, Check, ShoppingCart, Heart, Sun, Moon } from 'lucide-react';
 import { UserRole, Notification } from '../types.ts';
-// @ts-ignore
-import glasseaLogo from '../assets/glassea-logo.png';
 
 interface NavbarProps {
   currentRole: UserRole;
@@ -105,16 +103,21 @@ export default function Navbar({
           id="brand-logo"
         >
           <img
-            src={glasseaLogo || '/glassea-logo.png'}
-            onError={(e) => {
-              const target = e.currentTarget;
-              if (!target.src.endsWith('/glassea-logo.png')) {
-                target.src = '/glassea-logo.png';
-              }
-            }}
+            src="/glassea-logo.png"
             alt="GLASSEA Logo"
             className="h-7 w-7 sm:h-8 sm:w-8 rounded-full object-cover shadow-lg select-none shrink-0"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fb = document.getElementById('brand-logo-fallback');
+              if (fb) fb.style.display = 'flex';
+            }}
           />
+          <div 
+            id="brand-logo-fallback" 
+            className="hidden h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-gradient-to-tr from-primary to-accent items-center justify-center text-black font-black text-xs shadow-lg shrink-0"
+          >
+            G
+          </div>
           <span className="font-display font-black text-xs sm:text-lg tracking-[0.2em] text-neutral-dark group-hover:text-primary transition-colors inline">
             GLASSEA
           </span>
