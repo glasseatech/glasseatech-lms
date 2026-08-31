@@ -93,7 +93,6 @@ export default function Navbar({
           )}
         </button>
 
-        {/* Center: Brand Identity GLASSEA */}
         <div
           onClick={() => {
             if (currentRole === 'ADMIN') onNavigate('admin-dashboard');
@@ -103,9 +102,11 @@ export default function Navbar({
           className="absolute left-1/2 -translate-x-1/2 sm:static sm:translate-x-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none group"
           id="brand-logo"
         >
-          <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-gradient-to-r from-neutral-dark to-black flex items-center justify-center font-display font-extrabold text-white text-[10px] sm:text-xs select-none shadow animate-pulse-slow">
-            G
-          </div>
+          <img
+            src="/glassea-logo.png"
+            alt="GLASSEA Logo"
+            className="h-7 w-7 sm:h-8 sm:w-8 rounded-full object-cover shadow-lg animate-pulse-slow select-none"
+          />
           <span className="font-display font-black text-xs sm:text-lg tracking-[0.2em] text-neutral-dark group-hover:text-primary transition-colors inline">
             GLASSEA
           </span>
