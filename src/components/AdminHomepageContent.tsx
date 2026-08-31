@@ -128,3 +128,4 @@ export function FAQ({ siteConfig }: { siteConfig?: any }) {
     </section>
   );
 }
+export default AdminHomepageContent;
