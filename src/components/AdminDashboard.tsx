@@ -68,7 +68,7 @@ export function AdminDashboard({
           totalTransactions += 1;
           uniqueUsers.add(p.userId);
 
-          const date = new Date(p.createdAt || Date.now());
+          const date = new Date(p.paidAt || (p as any).createdAt || Date.now());
           const monthName = date.toLocaleString('default', { month: 'short' });
           monthlyStats[monthName] = (monthlyStats[monthName] || 0) + (p.amount || 0);
         }
