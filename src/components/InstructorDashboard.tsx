@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Course, Chapter, Lesson, Quiz, CertificateRequest } from '../types.ts';
 import { compressImageFile } from '../utils/imageCompressor';
+import { useExchangeRate, DEFAULT_USD_NGN_RATE } from '../utils/currency.ts';
 
 interface InstructorDashboardProps {
   courses: Course[];
@@ -196,9 +197,10 @@ export default function InstructorDashboard({
   // Manual course creation fields
   const [courseTitle, setCourseTitle] = useState('');
   const [courseDesc, setCourseDesc] = useState('');
-  const [coursePrice, setCoursePrice] = useState('35000');
+  const [coursePrice, setCoursePrice] = useState('49');
   const [courseCategory, setCourseCategory] = useState('Technology');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const { rate: liveRate } = useExchangeRate();
 
   // Course structural chapters
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -433,7 +435,7 @@ export default function InstructorDashboard({
       // Reset manual create entries
       setCourseTitle('');
       setCourseDesc('');
-      setCoursePrice('35000');
+      setCoursePrice('49');
       setThumbnailUrl('');
       setChapters([]);
       setAiPromptTopic('');
@@ -650,8 +652,13 @@ export default function InstructorDashboard({
             {/* Global Earning balances */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-neutral-light/5 border border-white/5 p-4 rounded-xl text-left font-mono">
-                <span className="block text-[10px] text-neutral-medium uppercase">Active Ledger Earnings</span>
-                <span className="text-xl font-bold text-accent-alt">₦{(earnings || 0).toLocaleString()}</span>
+                <span className="block text-[10px] text-neutral-medium uppercase">Active Ledger Earnings (USD)</span>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold text-accent-alt">${(earnings || 0).toLocaleString()} USD</span>
+                  <span className="text-[10px] text-emerald-400 mt-0.5">
+                    ≈ ₦{Math.round((earnings || 0) * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()} NGN
+                  </span>
+                </div>
               </div>
               <div className="bg-neutral-light/5 border border-white/5 p-4 rounded-xl text-left font-mono">
                 <span className="block text-[10px] text-neutral-medium uppercase">Active Scholars</span>
@@ -931,7 +938,9 @@ export default function InstructorDashboard({
                         <span className="block text-xs font-bold text-neutral-dark">{c.title}</span>
                         <div className="flex flex-wrap items-center gap-4 text-[10px] text-neutral-medium mt-1">
                           <span>Category: {c.category}</span>
-                          <span>Fee: ₦{(c.price || 0).toLocaleString()}</span>
+                          <span className="text-emerald-400 font-bold">
+                            Fee: ${(c.price || 0)} USD (≈ ₦{Math.round((c.price || 0) * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()} NGN)
+                          </span>
                           <span>Graduation completions: {c.studentsCount} scholars</span>
                         </div>
                       </div>
@@ -1221,14 +1230,19 @@ export default function InstructorDashboard({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-neutral-medium uppercase">Standard Price (NGN ₦)</label>
+                      <label className="text-[10px] font-bold text-neutral-medium uppercase">Course Price (USD $)</label>
                       <input 
                         type="number" 
+                        min="0"
+                        placeholder="e.g. 49"
                         className="w-full bg-neutral-light border border-neutral-medium/20 rounded-lg p-2.5 text-xs text-neutral-dark focus:outline-none focus:border-primary"
                         value={coursePrice}
                         onChange={(e) => setCoursePrice(e.target.value)}
                         required 
                       />
+                      <span className="text-[10px] text-neutral-medium font-mono block">
+                        Estimated NGN equivalent: ≈ ₦{Math.round((Number(coursePrice) || 0) * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()} NGN
+                      </span>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-neutral-medium uppercase">Category Taxonomy</label>
