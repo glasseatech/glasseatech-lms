@@ -299,6 +299,37 @@ export function CoursePlayer({
     }
   };
 
+  const handleSubmitCertificateRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCertificatePending(true);
+    setRequestSuccessMessage('');
+
+    try {
+      const res = await fetch('/api/certificates/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userEmail || 'student-guest',
+          studentEmail: requestDeliveryEmail,
+          recipientName: requestRecipientName,
+          courseId: course.id,
+          courseTitle: course.title,
+          studentNotes: requestStudentNotes
+        })
+      });
+
+      if (res.ok) {
+        setCertificateRequested(true);
+        setRequestSuccessMessage('Certificate request successfully dispatched to your instructor!');
+        setTimeout(() => setShowRequestModal(false), 2000);
+      }
+    } catch (err) {
+      console.error('Certificate request failed:', err);
+    } finally {
+      setCertificatePending(false);
+    }
+  };
+
   useEffect(() => {
     if (allLessonsCompleted()) {
       if (!hasCelebrated) {
@@ -556,13 +587,16 @@ export function CoursePlayer({
             <div className="relative rounded-2xl overflow-hidden bg-black aspect-video shadow-2xl border border-white/10">
               <AdvancedVideoPlayer 
                 videoUrl={activeLesson.videoUrl}
-                overrideUrl={activeOverrideUrl}
                 lessonId={activeLesson.id}
                 courseId={course.id}
-                onProgress={(pct) => {
+                userEmail={userEmail}
+                onProgressUpdate={(pct) => {
                   if (pct >= 95) {
-                    handleMarkLessonCompleted(activeLesson.id);
+                    handleLessonCheck(activeLesson.id);
                   }
+                }}
+                onComplete={() => {
+                  handleLessonCheck(activeLesson.id);
                 }}
               />
             </div>
@@ -586,7 +620,7 @@ export function CoursePlayer({
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => handleMarkLessonCompleted(activeLesson.id)}
+                  onClick={() => handleLessonCheck(activeLesson.id)}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-2 cursor-pointer ${
                     completedLessons[activeLesson.id]
                       ? 'bg-[#3ac58a]/20 text-[#3ac58a] border border-[#3ac58a]/30'
