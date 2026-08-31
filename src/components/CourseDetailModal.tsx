@@ -3,8 +3,9 @@ import {
   X, Star, Users, Clock, BookOpen, Heart, ShoppingCart, 
   CheckCircle, ShieldCheck, ArrowRight, Play, Award, HelpCircle, Eye, MessageSquare
 } from 'lucide-react';
-import { Course, Instructor } from '../types.ts';
+import { Course, Instructor, Review } from '../types.ts';
 import { INITIAL_COURSES, INSTRUCTORS } from '../data.ts';
+import { useExchangeRate, formatUSD, formatNGN, DEFAULT_USD_NGN_RATE } from '../utils/currency';
 
 interface CourseDetailModalProps {
   course: Course | null;
@@ -17,6 +18,9 @@ interface CourseDetailModalProps {
   onToggleWishlist: () => void;
   onBuyNow: () => void;
   onEnterRoom: () => void;
+  userEmail?: string;
+  userName?: string;
+  onReviewSubmitted?: () => void;
 }
 
 export default function CourseDetailModal({
@@ -30,9 +34,13 @@ export default function CourseDetailModal({
   onToggleWishlist,
   onBuyNow,
   onEnterRoom,
+  userEmail,
+  userName,
+  onReviewSubmitted
 }: CourseDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'syllabus' | 'info' | 'benefits' | 'reviews'>('syllabus');
   const [activeVideoUrl, setActiveVideoUrl] = useState('https://youtu.be/tHM6m177Xds?si=nUHVNt3rFs0BxxR-');
+  const { rate: liveRate } = useExchangeRate();
 
   useEffect(() => {
     let active = true;
@@ -43,19 +51,12 @@ export default function CourseDetailModal({
         const q = query(collection(db, "video_links"), where("isActive", "==", true));
         const querySnapshot = await getDocs(q);
         if (!active) return;
-        
-        let foundUrl = '';
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data && data.url) {
-            foundUrl = data.url;
-          }
-        });
-        if (foundUrl) {
-          setActiveVideoUrl(foundUrl);
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          setActiveVideoUrl(doc.data().url);
         }
       } catch (err) {
-        console.warn("Could not fetch active video link from Firestore in CourseDetailModal:", err);
+        console.error("Error fetching active video link:", err);
       }
     };
     fetchActiveLink();
@@ -64,30 +65,71 @@ export default function CourseDetailModal({
     };
   }, [isOpen]);
   
-  // Review state
-  const [rating, setRating] = useState(0);
+  // Real-time Review state
+  const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [reviews, setReviews] = useState<{rating: number, comment: string}[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState('');
+
+  // Fetch reviews from backend database
+  const fetchReviews = async () => {
+    if (!course) return;
+    try {
+      const res = await fetch(`/api/courses/${course.id}/reviews`);
+      if (res.ok) {
+        const data = await res.json();
+        setReviews(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.warn('Could not fetch reviews from backend, using fallback', e);
+    }
+  };
 
   useEffect(() => {
-    if (course) {
-      const storedReviews = localStorage.getItem(`reviews-${course.id}`);
-      if (storedReviews) {
-        setReviews(JSON.parse(storedReviews));
-      } else {
-        setReviews([]);
-      }
+    if (course && isOpen) {
+      fetchReviews();
     }
-  }, [course]);
+  }, [course, isOpen]);
 
-  const handleSubmitReview = () => {
-    if (rating === 0 || !comment.trim()) return;
-    const newReview = { rating, comment };
-    const updatedReviews = [...reviews, newReview];
-    setReviews(updatedReviews);
-    localStorage.setItem(`reviews-${course!.id}`, JSON.stringify(updatedReviews));
-    setRating(0);
-    setComment('');
+  const handleSubmitReview = async () => {
+    if (rating === 0 || !comment.trim() || !course) return;
+    setSubmittingReview(true);
+    setReviewMsg('');
+
+    try {
+      const res = await fetch(`/api/courses/${course.id}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userEmail || 'student-guest',
+          userEmail: userEmail || 'student@glassea.tech',
+          userName: userName || userEmail?.split('@')[0] || 'Verified Student',
+          rating,
+          comment: comment.trim()
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reviews) {
+          setReviews(data.reviews);
+        } else if (data.review) {
+          setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
+        }
+        setComment('');
+        setRating(5);
+        setReviewMsg('Thank you! Your review has been submitted.');
+        if (onReviewSubmitted) onReviewSubmitted();
+      } else {
+        setReviewMsg('Unable to save review. Please try again.');
+      }
+    } catch (err) {
+      console.error('Failed to submit review:', err);
+      setReviewMsg('Review submission failed. Please check your network.');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   if (!isOpen || !course) return null;
@@ -412,52 +454,90 @@ export default function CourseDetailModal({
           {activeTab === 'reviews' && (
             <div className="space-y-6 p-6 rounded-2xl border border-neutral-medium/10 dark:border-neutral-medium/30" style={{ backgroundColor: '#091321' }}>
               <div className="bg-neutral-bg p-6 rounded-2xl border border-neutral-medium/10 dark:border-neutral-medium/30">
-                <h4 className="font-bold text-sm mb-4 text-slate-200">Leave a Review</h4>
-                <div className="flex gap-2 mb-4">
+                <h4 className="font-bold text-sm mb-2 text-slate-200">Share Your Course Review</h4>
+                <p className="text-xs text-neutral-medium mb-4">Your verified feedback updates the course rating in real time.</p>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs text-slate-400 mr-1">Your Rating:</span>
                   {[1,2,3,4,5].map(star => (
                     <Star
                       key={star}
-                      className={`h-6 w-6 cursor-pointer ${star <= rating ? 'fill-accent text-accent' : 'text-neutral-medium'}`}
+                      className={`h-5 w-5 cursor-pointer transition ${star <= rating ? 'fill-amber-400 text-amber-400' : 'text-neutral-medium/40 hover:text-amber-400/60'}`}
                       onClick={() => setRating(star)}
                     />
                   ))}
+                  <span className="text-xs font-bold text-amber-400 ml-2">{rating}/5 Stars</span>
                 </div>
                 <textarea
-                  className="w-full bg-[#1b1e21] border border-neutral-medium/30 p-3 rounded-xl mb-3 text-sm text-slate-200 focus:outline-none focus:border-primary placeholder:text-neutral-medium/40"
-                  placeholder="Share your experience..."
+                  className="w-full bg-[#1b1e21] border border-neutral-medium/30 p-3 rounded-xl mb-3 text-sm text-slate-200 focus:outline-none focus:border-[#00D9FF] placeholder:text-neutral-medium/40"
+                  placeholder="What did you think of the curriculum and instruction?..."
+                  rows={3}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
+
+                {reviewMsg && (
+                  <div className="text-xs p-2.5 rounded-lg mb-3 bg-[#00D9FF]/10 border border-[#00D9FF]/20 text-[#00D9FF]">
+                    {reviewMsg}
+                  </div>
+                )}
+
                 <button
+                  type="button"
+                  disabled={submittingReview || !comment.trim()}
                   onClick={handleSubmitReview}
-                  className="px-4 py-2 bg-[#00D9FF] text-neutral-dark hover:bg-[#00D9FF]/90 text-xs font-bold rounded-xl shadow-sm transition duration-200 cursor-pointer"
+                  className="px-5 py-2.5 bg-[#00D9FF] text-black hover:bg-[#00D9FF]/90 text-xs font-bold rounded-xl shadow-sm transition duration-200 cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  Post Review
+                  {submittingReview ? 'Submitting...' : 'Post Verified Review'}
                 </button>
               </div>
+
               <div className="space-y-3">
-                {reviews.map((r, i) => (
-                  <div key={i} className="p-4 bg-neutral-bg border border-neutral-medium/10 dark:border-neutral-medium/30 rounded-xl">
-                    <div className="flex gap-1 mb-1">
-                      {[...Array(5)].map((_, idx) => (
-                        <Star key={idx} className={`h-4 w-4 ${idx < r.rating ? 'fill-accent text-accent' : 'text-neutral-medium dark:text-neutral-medium/60'}`} />
-                      ))}
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Student Reviews ({reviews.length})
+                </h5>
+                {reviews.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic p-4 bg-neutral-bg/60 rounded-xl border border-white/5">
+                    No reviews yet. Be the first student to review this course!
+                  </p>
+                ) : (
+                  reviews.map((r, i) => (
+                    <div key={r.id || i} className="p-4 bg-neutral-bg border border-neutral-medium/10 dark:border-neutral-medium/30 rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{r.userName || 'Enrolled Student'}</span>
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, idx) => (
+                            <Star key={idx} className={`h-3.5 w-3.5 ${idx < r.rating ? 'fill-amber-400 text-amber-400' : 'text-neutral-medium/40'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">{r.comment}</p>
+                      {r.createdAt && (
+                        <span className="text-[10px] text-slate-500 block font-mono">
+                          {new Date(r.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-slate-300">{r.comment}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           )}
 
-          {/* Actions Bar (Moved here) */}
+          {/* Actions Bar */}
           <div className="p-4 bg-neutral-light dark:bg-neutral-bg rounded-xl border border-neutral-medium/10 dark:border-neutral-medium/30 flex items-center justify-between flex-col sm:flex-row gap-4">
             
             <div className="flex flex-col text-center sm:text-left">
               <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-medium dark:text-neutral-medium/80 font-bold leading-none">TOTAL TUITION COST</span>
-              <span className="text-xl font-black font-display text-neutral-dark mt-1">
-                {(!course.price || course.price === 0) ? 'Free' : `₦${course.price.toLocaleString()}`}
-              </span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-black font-display text-neutral-dark">
+                  {(!course.price || course.price === 0) ? 'Free' : `$${course.price}`}
+                </span>
+                {course.price > 0 && (
+                  <span className="text-xs font-mono text-emerald-400 font-semibold">
+                    ≈ ₦{Math.round(course.price * (liveRate || DEFAULT_USD_NGN_RATE)).toLocaleString()} NGN
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2.5 select-none w-full sm:w-auto justify-center">
