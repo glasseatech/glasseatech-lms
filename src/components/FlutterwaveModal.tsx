@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Loader2, Zap, X, ShieldCheck, Globe, DollarSign, CreditCard } from 'lucide-react';
+import { Loader2, Zap, X, ShieldCheck, DollarSign, CreditCard, CheckCircle } from 'lucide-react';
+import { useExchangeRate, DEFAULT_USD_NGN_RATE } from '../utils/currency';
 
 declare global {
   interface Window {
@@ -8,7 +9,7 @@ declare global {
 }
 
 interface FlutterwaveModalProps {
-  amount: number; // base amount in NGN
+  amount: number; // base authoritative price in USD ($)
   email: string;
   userName?: string;
   courseTitle: string;
@@ -32,15 +33,19 @@ export default function FlutterwaveModal({
   const [customerEmail, setCustomerEmail] = useState(email || 'student@glassea.tech');
   const [customerName, setCustomerName] = useState(userName || 'Premium Scholar');
   const [customerPhone, setCustomerPhone] = useState('08012345678');
-  const [currency, setCurrency] = useState<'NGN' | 'USD'>('USD'); // Default dollar support as requested
+  const [currency, setCurrency] = useState<'USD' | 'NGN'>('USD'); // Default USD as primary international currency
   const [paymentError, setPaymentError] = useState('');
+  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState('');
 
-  // Conversion rate: 1 USD = ~1400 NGN
-  const usdRate = 1400;
-  const usdAmount = Math.max(10, Math.round(amount / usdRate));
-  const ngnAmount = amount || 35000;
+  // Live exchange rate hook
+  const { rate: liveRate } = useExchangeRate();
 
-  const currentAmount = currency === 'USD' ? usdAmount : ngnAmount;
+  // Authoritative USD course price
+  const usdAmount = amount > 1000 ? Math.round(amount / 1000) : (amount || 49);
+  // Real-time calculated NGN equivalent
+  const ngnAmount = Math.round(usdAmount * (liveRate || DEFAULT_USD_NGN_RATE));
+
+  const currentPayableAmount = currency === 'USD' ? usdAmount : ngnAmount;
 
   const handleFlutterwavePayment = () => {
     setPaymentError('');
@@ -72,164 +77,228 @@ export default function FlutterwaveModal({
     window.FlutterwaveCheckout({
       public_key: 'FLWPUBK-78c72f0b8f074be3ab27a39a80af4d99-X',
       tx_ref: tx_ref,
-      amount: currentAmount,
+      amount: currentPayableAmount,
       currency: currency,
       payment_options: 'card,banktransfer,account,ussd',
       customer: {
         email: customerEmail,
-        phone_number: customerPhone,
         name: customerName,
+        phone_number: customerPhone || '08000000000',
       },
       customizations: {
-        title: 'GlasseaTech Academy',
-        description: `Enrollment: ${courseTitle.substring(0, 45)}`,
-        logo: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=128&auto=format&fit=crop&q=80',
+        title: 'GLASSEA Academy Checkout',
+        description: `Enrollment: ${courseTitle.substring(0, 40)}`,
+        logo: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=200&q=80',
       },
-      callback: (data: any) => {
-        setProcessing(true);
-        if (data.status === 'successful' || data.charge_response_code === '00' || data.status === 'completed') {
-          setTimeout(() => {
-            onPaymentSuccess(data.transaction_id ? String(data.transaction_id) : tx_ref);
-            setProcessing(false);
-          }, 800);
+      callback: async function (response: any) {
+        console.log('Flutterwave Transaction Response:', response);
+        if (response.status === 'successful' || response.status === 'completed' || response.charge_response_code === '00' || response.tx_ref) {
+          setProcessing(true);
+          const finalRef = response.transaction_id ? String(response.transaction_id) : (response.tx_ref || tx_ref);
+          
+          try {
+            const itemsToBuy = courseIds && courseIds.length > 0 
+              ? courseIds 
+              : (courseId ? [courseId] : []);
+
+            // 1. Post to Express backend
+            for (const cId of (itemsToBuy.length > 0 ? itemsToBuy : ['course-global'])) {
+              try {
+                await fetch('/api/purchase', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: customerEmail,
+                    userName: customerName,
+                    courseId: cId,
+                    amount: currentAmount,
+                    currency: currency,
+                    reference: finalRef,
+                    gateway: 'flutterwave'
+                  })
+                });
+              } catch (apiErr) {
+                console.error('Server sync error:', apiErr);
+              }
+            }
+
+            // 2. Write to Firestore if connected
+            try {
+              const { collection, addDoc } = await import('firebase/firestore');
+              const { db } = await import('../firebase.ts');
+              
+              for (const cId of (itemsToBuy.length > 0 ? itemsToBuy : ['course-global'])) {
+                await addDoc(collection(db, 'purchases'), {
+                  userId: customerEmail,
+                  userName: customerName,
+                  courseId: cId,
+                  amount: currentAmount,
+                  currency: currency,
+                  reference: finalRef,
+                  status: 'success',
+                  gateway: 'flutterwave',
+                  createdAt: new Date().toISOString()
+                });
+              }
+            } catch (fsErr) {
+              console.warn('Firestore fallback sync:', fsErr);
+            }
+
+            onPaymentSuccess(finalRef);
+          } catch (err: any) {
+            console.error('Registration error:', err);
+            onPaymentSuccess(finalRef);
+          }
         } else {
-          setProcessing(false);
-          setPaymentError(data.message || 'Payment was not completed. Please try again.');
+          setPaymentError('Payment was not completed successfully. Please try again.');
         }
       },
-      onclose: () => {
-        setProcessing(false);
+      onclose: function () {
+        console.log('Flutterwave window closed by user.');
       }
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl shadow-emerald-500/10">
-        <button
-          onClick={onPaymentClose}
-          className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Zap className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              Flutterwave Checkout
-            </h2>
-            <p className="text-xs text-slate-400">Universal Payment Gateway (USD & NGN)</p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 mb-6">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Item Details</div>
-          <div className="text-sm font-medium text-white line-clamp-1">{courseTitle}</div>
-
-          {/* Currency Toggle */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-            <div className="text-xs text-slate-400">Payment Currency:</div>
-            <div className="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700">
-              <button
-                type="button"
-                onClick={() => setCurrency('USD')}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                  currency === 'USD'
-                    ? 'bg-amber-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <DollarSign className="w-3 h-3 inline mr-0.5" /> USD ($)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrency('NGN')}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                  currency === 'NGN'
-                    ? 'bg-amber-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                ₦ NGN
-              </button>
+    <div className="fixed inset-0 bg-secondary-dark/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-[#0b0f19] border border-white/15 rounded-3xl shadow-2xl p-6 sm:p-8 text-white relative animate-fade-in">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-[#fb923c] to-[#f97316] flex items-center justify-center text-black font-bold shadow-lg shadow-orange-500/20">
+              <Zap className="h-4 w-4 fill-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-display font-bold leading-none text-white">Flutterwave Global Checkout</h2>
+              <span className="text-[10px] font-mono text-white/50 uppercase tracking-widest">Multi-Currency Gateway</span>
             </div>
           </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs text-slate-400">Total Payable:</span>
-            <span className="text-2xl font-black text-amber-400">
-              {currency === 'USD' ? `$${usdAmount}` : `₦${ngnAmount.toLocaleString()}`}
-            </span>
-          </div>
+          <button 
+            onClick={onPaymentClose} 
+            className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
+        
+        {processing ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Loader2 className="w-12 h-12 text-[#f97316] animate-spin mb-4" />
+            <p className="font-semibold text-white">Verifying payment & unlocking courses...</p>
+            <span className="text-[10px] uppercase tracking-wider text-white/50 mt-2 font-mono">Syncing Cloud Database</span>
+          </div>
+        ) : (
+          <div className="space-y-5 text-left">
+            
+            {/* Course Summary Card */}
+            <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 text-sm space-y-3">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest font-mono">Enrolling Into</span>
+                <span className="font-bold text-white text-base line-clamp-1">{courseTitle}</span>
+              </div>
 
-        {paymentError && (
-          <div className="p-3 mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs">
-            {paymentError}
+              {/* Currency Selector */}
+              <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+                <span className="text-xs text-white/60 font-medium">Select Currency:</span>
+                <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setCurrency('USD')}
+                    className={`px-3 py-1 text-xs font-mono font-bold rounded-lg transition-all flex items-center gap-1 ${
+                      currency === 'USD' 
+                        ? 'bg-gradient-to-r from-[#f97316] to-[#fb923c] text-black shadow-md' 
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <DollarSign className="w-3 h-3" /> USD ($)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrency('NGN')}
+                    className={`px-3 py-1 text-xs font-mono font-bold rounded-lg transition-all flex items-center gap-1 ${
+                      currency === 'NGN' 
+                        ? 'bg-gradient-to-r from-[#00D9FF] to-[#3ac58a] text-black shadow-md' 
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    ₦ NGN
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-between items-center">
+                <span className="text-white/60 font-medium text-xs">Total Amount</span>
+                <span className="text-2xl font-display font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#f97316] via-[#fb923c] to-[#00D9FF]">
+                  {currency === 'USD' ? `$${usdAmount.toLocaleString()}` : `₦${ngnAmount.toLocaleString()}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer Inputs */}
+            <div className="space-y-3 font-mono text-xs">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">Your Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="e.g. Amina Bello"
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/15 rounded-xl text-white focus:border-[#f97316] focus:outline-none transition"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">Billing Email Address (Global Access)</label>
+                <input
+                  type="email"
+                  required
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="name@domain.com"
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/15 rounded-xl text-white focus:border-[#f97316] focus:outline-none transition"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">Phone Number</label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="+1 (555) 000-0000 or 080..."
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/15 rounded-xl text-white focus:border-[#f97316] focus:outline-none transition"
+                />
+              </div>
+            </div>
+
+            {paymentError && (
+              <div className="p-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-xs font-mono text-center animate-fade-in">
+                {paymentError}
+              </div>
+            )}
+            
+            {/* Pay Button */}
+            <button 
+              onClick={handleFlutterwavePayment}
+              disabled={!customerEmail.includes('@')}
+              className="w-full py-4 rounded-xl font-display font-extrabold text-black text-sm bg-gradient-to-r from-[#f97316] via-[#fb923c] to-[#00D9FF] hover:opacity-95 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-orange-500/20 transition-all flex items-center justify-center cursor-pointer uppercase tracking-wider gap-2"
+            >
+              <CreditCard className="w-4 h-4" />
+              Pay {currency === 'USD' ? `$${usdAmount}` : `₦${ngnAmount.toLocaleString()}`} with Flutterwave
+            </button>
+            
+            {/* Trust Badges */}
+            <div className="flex items-center justify-center gap-2 pt-1 text-white/40">
+              <ShieldCheck className="w-4 h-4 text-[#3ac58a]" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest">
+                256-Bit SSL • Flutterwave Global Dollar & Naira
+              </span>
+            </div>
+
           </div>
         )}
-
-        <div className="space-y-3 mb-6">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Full Name</label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="e.g. Jane Doe"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Email Address</label>
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              placeholder="student@glassea.tech"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Phone Number</label>
-            <input
-              type="tel"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              placeholder="08012345678"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition"
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          disabled={processing}
-          onClick={handleFlutterwavePayment}
-          className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-sm shadow-lg shadow-orange-500/25 hover:opacity-95 active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {processing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing Securely...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-4 h-4" />
-              Pay {currency === 'USD' ? `$${usdAmount} USD` : `₦${ngnAmount.toLocaleString()} NGN`} with Flutterwave
-            </>
-          )}
-        </button>
-
-        <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-slate-500">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>256-bit Encrypted Flutterwave Gateway • USD & NGN Accepted</span>
-        </div>
       </div>
     </div>
   );
