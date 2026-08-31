@@ -7,7 +7,7 @@ import CoursePlayer from './components/CoursePlayer.tsx';
 import InstructorDashboard from './components/InstructorDashboard.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import AuthModal from './components/AuthModal.tsx';
-import PaystackModal from './components/PaystackModal.tsx';
+import FlutterwaveModal from './components/FlutterwaveModal.tsx';
 import CartWishlistDrawers from './components/CartWishlistDrawers.tsx';
 import CustomCursor from './components/CustomCursor.tsx';
 import { Course, Certificate, UserRole, Notification } from './types.ts';
@@ -958,9 +958,9 @@ export default function App() {
         />
       )}
 
-      {/* ================= MODAL: SECURE PAYSTACK CHECKOUT (COURSE) ================= */}
+      {/* ================= MODAL: SECURE FLUTTERWAVE CHECKOUT (COURSE) ================= */}
       {selectedCheckoutCourse && (
-        <PaystackModal
+        <FlutterwaveModal
           amount={selectedCheckoutCourse.price}
           email={userEmail}
           userName={userName}
@@ -971,9 +971,9 @@ export default function App() {
         />
       )}
 
-      {/* ================= MODAL: SECURE PAYSTACK CHECKOUT (LIFEPASS PLAN) ================= */}
+      {/* ================= MODAL: SECURE FLUTTERWAVE CHECKOUT (LIFEPASS PLAN) ================= */}
       {directPaymentPlan && (
-        <PaystackModal
+        <FlutterwaveModal
           amount={directPaymentPlan.price}
           email={userEmail}
           userName={userName}
@@ -1005,9 +1005,9 @@ export default function App() {
         onCheckoutCart={handleCheckoutCart}
       />
 
-      {/* ================= MODAL: SECURE CONSOLIDATED CART PAYSTACK CHECKOUT ================= */}
+      {/* ================= MODAL: SECURE CONSOLIDATED CART FLUTTERWAVE CHECKOUT ================= */}
       {isCheckingOutCart && (
-        <PaystackModal
+        <FlutterwaveModal
           amount={courses.filter((c) => cartCourseIds.includes(c.id)).reduce((sum, c) => sum + c.price, 0) + Math.floor(courses.filter((c) => cartCourseIds.includes(c.id)).reduce((sum, c) => sum + c.price, 0) * 0.05)}
           email={userEmail}
           userName={userName}
