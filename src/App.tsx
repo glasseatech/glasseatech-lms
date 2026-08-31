@@ -535,6 +535,61 @@ export default function App() {
     };
   }, [userEmail]);
 
+  // Real-time Firestore & LocalStorage listener for Course Reviews & Ratings
+  useEffect(() => {
+    let unsubscribeReviews: (() => void) | null = null;
+    const setupReviewsListener = async () => {
+      try {
+        const { collection, onSnapshot } = await import("firebase/firestore");
+        const { db } = await import("./firebase.ts");
+        unsubscribeReviews = onSnapshot(collection(db, "courses_reviews"), (snapshot) => {
+          const grouped: Record<string, number[]> = {};
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.courseId && typeof data.rating === 'number') {
+              if (!grouped[data.courseId]) grouped[data.courseId] = [];
+              grouped[data.courseId].push(data.rating);
+            }
+          });
+
+          setCourses((prevCourses) => {
+            if (prevCourses.length === 0) return prevCourses;
+            return prevCourses.map((c) => {
+              const ratings = grouped[c.id];
+              if (ratings && ratings.length > 0) {
+                const total = ratings.reduce((sum, r) => sum + r, 0);
+                const avg = Math.round((total / ratings.length) * 10) / 10;
+                return {
+                  ...c,
+                  rating: avg,
+                  reviewsCount: ratings.length
+                };
+              }
+              return c;
+            });
+          });
+        });
+      } catch (err) {
+        console.warn("Could not setup real-time reviews listener:", err);
+      }
+    };
+
+    setupReviewsListener();
+
+    // Cross-tab and local review update listener
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.startsWith('course_reviews_') || e.key.startsWith('course_rating_'))) {
+        fetchMainDatabase();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      if (unsubscribeReviews) unsubscribeReviews();
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // Sync cart and wishlist changes to Firestore
   useEffect(() => {
     if (!userEmail) return;
@@ -592,12 +647,12 @@ export default function App() {
     setLoading(true);
 
     try {
-      const { collection, getDocs, doc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("./firebase.ts");
-
       let coursesData: any[] = [];
+
+      // 1. Try loading courses from Firestore
       try {
-        // Load courses from Firestore
+        const { collection, getDocs } = await import("firebase/firestore");
+        const { db } = await import("./firebase.ts");
         const querySnapshot = await getDocs(collection(db, "courses"));
         querySnapshot.forEach((doc) => {
           coursesData.push({ id: doc.id, ...doc.data() });
@@ -606,21 +661,95 @@ export default function App() {
         console.warn("Could not read courses from Firestore:", firestoreErr);
       }
 
-      // Fetch counts from Express backend (Firestore-backed counts)
+      // 2. If no Firestore courses, fallback to Express backend
+      if (coursesData.length === 0) {
+        try {
+          const apiRes = await fetch('/api/courses');
+          if (apiRes.ok) {
+            coursesData = await apiRes.json();
+          }
+        } catch (apiErr) {
+          console.warn("Could not read courses from Express API:", apiErr);
+        }
+      }
+
+      // 3. If still empty, fallback to INITIAL_COURSES
+      if (coursesData.length === 0) {
+        const { INITIAL_COURSES } = await import("./data.ts");
+        coursesData = [...INITIAL_COURSES];
+      }
+
+      // 4. Fetch counts from Express backend (Firestore-backed counts)
+      let countsData: Record<string, number> = {};
       try {
         const countsRes = await fetch('/api/courses/counts');
         if (countsRes.ok) {
-          const countsData = await countsRes.json();
-          coursesData = coursesData.map(c => ({
-            ...c,
-            studentsCount: countsData[c.id] ?? c.studentsCount
-          }));
+          countsData = await countsRes.json();
         }
       } catch (countsErr) {
         console.warn("Could not fetch real course counts:", countsErr);
       }
 
-      setCourses(coursesData.filter(c => c !== null));
+      // 5. Gather real-time review statistics from Firestore & API & LocalStorage
+      const reviewStats: Record<string, { rating: number; reviewsCount: number }> = {};
+
+      try {
+        const { collection, getDocs } = await import("firebase/firestore");
+        const { db } = await import("./firebase.ts");
+        const revSnap = await getDocs(collection(db, "courses_reviews"));
+        const grouped: Record<string, number[]> = {};
+        revSnap.forEach((d) => {
+          const r = d.data();
+          if (r.courseId && typeof r.rating === 'number') {
+            if (!grouped[r.courseId]) grouped[r.courseId] = [];
+            grouped[r.courseId].push(r.rating);
+          }
+        });
+        Object.keys(grouped).forEach((cId) => {
+          const ratings = grouped[cId];
+          const total = ratings.reduce((sum, val) => sum + val, 0);
+          const avg = Math.round((total / ratings.length) * 10) / 10;
+          reviewStats[cId] = { rating: avg, reviewsCount: ratings.length };
+        });
+      } catch (fsRevErr) {
+        console.warn("Could not query Firestore reviews directly:", fsRevErr);
+      }
+
+      try {
+        const revAggRes = await fetch('/api/courses/reviews/aggregates');
+        if (revAggRes.ok) {
+          const aggData = await revAggRes.json();
+          Object.assign(reviewStats, aggData);
+        }
+      } catch (_) {}
+
+      // Apply real-time statistics to coursesData
+      coursesData = coursesData.map((c) => {
+        let localRating = c.rating;
+        let localReviewsCount = c.reviewsCount;
+
+        try {
+          const localRev = localStorage.getItem(`course_reviews_${c.id}`);
+          if (localRev) {
+            const parsed = JSON.parse(localRev);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const total = parsed.reduce((s: number, r: any) => s + (Number(r.rating) || 5), 0);
+              localRating = Math.round((total / parsed.length) * 10) / 10;
+              localReviewsCount = parsed.length;
+            }
+          }
+        } catch (_) {}
+
+        const live = reviewStats[c.id];
+        return {
+          ...c,
+          studentsCount: countsData[c.id] ?? c.studentsCount ?? 0,
+          rating: live?.rating ?? localRating ?? c.rating ?? 5.0,
+          reviewsCount: live?.reviewsCount ?? localReviewsCount ?? c.reviewsCount ?? 0
+        };
+      });
+
+      setCourses(coursesData.filter((c) => c !== null));
 
     } catch (err) {
       console.warn('Unhandled exception in fetchMainDatabase:', err);
