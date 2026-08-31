@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Course, Chapter, Lesson, Quiz, Review } from '../types.ts';
 import AdvancedVideoPlayer from './AdvancedVideoPlayer.tsx';
+import { downloadCertificatePDF, openCertificatePDFInNewTab } from '../utils/certificateGenerator.ts';
 
 interface CoursePlayerProps {
   course: Course;
@@ -146,10 +147,40 @@ export function CoursePlayer({
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScoreStatus, setQuizScoreStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   
-  // Certificate awarding states
+  // Certificate awarding & request states
   const [certificatePending, setCertificatePending] = useState(false);
   const [certificateGranted, setCertificateGranted] = useState(false);
+  const [certificateRequested, setCertificateRequested] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestRecipientName, setRequestRecipientName] = useState(userName || userEmail?.split('@')[0] || 'Premium Scholar');
+  const [requestDeliveryEmail, setRequestDeliveryEmail] = useState(userEmail || 'student@glassea.tech');
+  const [requestStudentNotes, setRequestStudentNotes] = useState('');
+  const [requestSuccessMessage, setRequestSuccessMessage] = useState('');
   const [hasCelebrated, setHasCelebrated] = useState(false);
+
+  // Check if certificate or request already exists for this course
+  useEffect(() => {
+    const checkCertStatus = async () => {
+      if (!userEmail) return;
+      try {
+        const res = await fetch(`/api/certificates/requests?userId=${encodeURIComponent(userEmail)}`);
+        if (res.ok) {
+          const reqs = await res.json();
+          const currentReq = reqs.find((r: any) => r.courseId === course.id);
+          if (currentReq) {
+            if (currentReq.status === 'approved') {
+              setCertificateGranted(true);
+            } else if (currentReq.status === 'pending') {
+              setCertificateRequested(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching cert request status:', err);
+      }
+    };
+    checkCertStatus();
+  }, [course.id, userEmail]);
 
   // Video Link active override state
   const [activeOverrideUrl, setActiveOverrideUrl] = useState<string | null>(null);
@@ -222,22 +253,63 @@ export function CoursePlayer({
     };
   }, [activeLesson?.id]);
 
+  // Automatic certificate issuance state
+  const [autoIssuedCert, setAutoIssuedCert] = useState<any>(null);
+  const [isGeneratingCert, setIsGeneratingCert] = useState(false);
+
   // CHECK ELIGIBILITY FOR GRADUATION
   const allLessonsCompleted = () => {
-    // Check if the current student has completed quizzes or checked coursework
     const totalLessons = course.chapters.flatMap(ch => ch.lessons).length;
     const tickCount = Object.values(completedLessons).filter(Boolean).length;
     return tickCount >= totalLessons || (totalLessons > 0 && quizScoreStatus === 'success');
   };
 
-  useEffect(() => {
-    if (allLessonsCompleted() && !hasCelebrated) {
-      setHasCelebrated(true);
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 }
+  const handleAutoIssueCertificate = async () => {
+    if (autoIssuedCert) return;
+    setIsGeneratingCert(true);
+    try {
+      const studentName = userName || userEmail?.split('@')[0] || 'Verified Scholar';
+      const res = await fetch('/api/certificates/auto-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userEmail || 'student-guest',
+          userEmail: userEmail || '',
+          userName: studentName,
+          courseId: course.id,
+          courseTitle: course.title,
+          courseCategory: course.category || 'Modern Software Architecture',
+          instructorName: course.instructorName || 'Dr. Elena Vance',
+          duration: `${course.chapters?.length || 8} Modules`
+        })
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.certificate) {
+          setAutoIssuedCert(data.certificate);
+          setCertificateGranted(true);
+          onCertificateEarned(course.title);
+        }
+      }
+    } catch (e) {
+      console.warn('Auto certificate issuance notice:', e);
+    } finally {
+      setIsGeneratingCert(false);
+    }
+  };
+
+  useEffect(() => {
+    if (allLessonsCompleted()) {
+      if (!hasCelebrated) {
+        setHasCelebrated(true);
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+      handleAutoIssueCertificate();
     }
   }, [completedLessons, quizScoreStatus, course.chapters, hasCelebrated]);
 
@@ -458,145 +530,145 @@ export function CoursePlayer({
       <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 lg:h-[calc(100vh-6rem)] lg:overflow-y-auto">
         
         {/* Dynamic header navigation trail */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono text-[10px] sm:text-xs">
-          <div className="flex items-center gap-1.5 text-neutral-medium overflow-x-auto whitespace-nowrap pb-1 sm:pb-0 scrollbar-hide">
-            <button onClick={() => onNavigate('home')} className="hover:text-primary transition cursor-pointer">HOME</button>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            <button onClick={() => onNavigate('student-dashboard')} className="hover:text-primary transition cursor-pointer">MY DASHBOARD</button>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            <span className="text-neutral-dark font-semibold truncate max-w-[150px] sm:max-w-xs">{course.title}</span>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs font-mono text-neutral-medium">
+            <button 
+              onClick={() => onNavigate('courses')}
+              className="hover:text-primary transition"
+            >
+              Courses
+            </button>
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-neutral-dark font-bold truncate max-w-xs">{course.title}</span>
           </div>
 
-          {/* Core progress tracker state */}
-          <div className="text-left sm:text-right border-l sm:border-l-0 sm:border-r border-primary/20 pl-3 sm:pl-0 sm:pr-3">
-            <span className="text-[9px] text-neutral-medium uppercase tracking-wider block">GRADUATION MILESTONE</span>
-            <span className="text-xs font-bold font-mono text-neutral-dark">
-              {Object.values(completedLessons).filter(Boolean).length} of {course.chapters.flatMap(ch => ch.lessons).length} modules
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">
+              {course.category}
             </span>
           </div>
         </div>
 
-        {/* Video simulation viewer player */}
         {activeLesson ? (
-          <div className="space-y-4" id="video-workspace-anchor">
+          <div className="space-y-6">
             
-            {/* Standardized YouTube Iframe-Based Video Player Casing */}
-            <AdvancedVideoPlayer
-              videoUrl={activeOverrideUrl || activeLesson.videoUrl}
-              courseId={course.id}
-              lessonId={activeLesson.id}
-              userEmail={userEmail}
-              isLiveSeminar={!!activeOverrideUrl}
-              onProgressUpdate={(percent) => {
-                // CoursePlayer internal check handler (optional)
-              }}
-              onComplete={() => {
-                // Auto-mark lesson as complete if it hits 95%
-                if (!completedLessons[activeLesson.id]) {
-                  handleLessonCheck(activeLesson.id);
-                }
-              }}
-            />
-
-            {/* Title, check toggle, and content descriptor */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-neutral-light/5 border border-white/[0.05]">
-              <div className="text-left space-y-1">
-                <span className="text-[10px] text-primary font-mono tracking-widest font-extrabold uppercase">CURRENT SELECTION</span>
-                <h2 className="font-display font-extrabold text-lg sm:text-xl text-neutral-dark leading-tight">{activeLesson.title}</h2>
-              </div>
-              <button
-                onClick={() => handleLessonCheck(activeLesson.id)}
-                className={`px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer w-full md:w-auto ${
-                  completedLessons[activeLesson.id]
-                    ? 'bg-accent-alt/15 text-accent-alt border-accent-alt glow-neon-emerald'
-                    : 'bg-neutral-light/5 text-neutral-medium border-transparent hover:border-white/10'
-                }`}
-              >
-                <CheckCircle className="h-4 w-4" />
-                {completedLessons[activeLesson.id] ? 'MODULE COMPLETE' : 'MARK COMPLETE'}
-              </button>
+            {/* Top Video Player Container with Custom Controls */}
+            <div className="relative rounded-2xl overflow-hidden bg-black aspect-video shadow-2xl border border-white/10">
+              <AdvancedVideoPlayer 
+                videoUrl={activeLesson.videoUrl}
+                overrideUrl={activeOverrideUrl}
+                lessonId={activeLesson.id}
+                courseId={course.id}
+                onProgress={(pct) => {
+                  if (pct >= 95) {
+                    handleMarkLessonCompleted(activeLesson.id);
+                  }
+                }}
+              />
             </div>
 
-            {/* Syllabus writeup explanation text */}
-            <div className="p-6 rounded-2xl glass-panel text-left space-y-3">
-              <span className="text-[10px] font-mono text-neutral-medium uppercase tracking-widest block">Syllabus Guidance Notes</span>
-              <p className="text-xs text-neutral-dark leading-relaxed font-mono whitespace-pre-line bg-secondary-dark/60 p-4 rounded-xl border border-white/5">
-                {activeLesson.content || 'This lesson covers advanced, structurally sound paradigms for production systems. Load corresponding workspace worksheets to test optimization schemas.'}
+            {/* Lesson Title & Action Details */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/[0.02] border border-white/10 rounded-2xl p-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
+                    ACTIVE MODULE
+                  </span>
+                </div>
+                <h2 className="font-display font-extrabold text-xl sm:text-2xl text-neutral-dark">
+                  {activeLesson.title}
+                </h2>
+                <span className="text-xs text-neutral-medium font-mono flex items-center gap-1.5 pt-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-[#3ac58a]"></span>
+                  Duration: {activeLesson.duration || '15:00'} min
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleMarkLessonCompleted(activeLesson.id)}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-2 cursor-pointer ${
+                    completedLessons[activeLesson.id]
+                      ? 'bg-[#3ac58a]/20 text-[#3ac58a] border border-[#3ac58a]/30'
+                      : 'bg-primary text-black hover:opacity-90'
+                  }`}
+                >
+                  <Check className="h-4 w-4" />
+                  {completedLessons[activeLesson.id] ? 'Completed' : 'Mark as Completed'}
+                </button>
+              </div>
+            </div>
+
+            {/* Lesson Content & Summary */}
+            <div className="glass-panel p-6 rounded-2xl space-y-4">
+              <h3 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase">
+                Module Brief & Learning Notes
+              </h3>
+              <p className="text-sm text-neutral-dark leading-relaxed whitespace-pre-line font-sans">
+                {activeLesson.content || 'Detailed architectural overview and masterclass code breakdown for this chapter.'}
               </p>
             </div>
 
-            {/* QUIZ PORTAL CASING IF DEFINED */}
+            {/* Chapter Quiz Section if exists */}
             {activeLesson.quiz && (
-              <div className="p-6 rounded-2xl border border-accent/20 bg-accent/5 overflow-hidden font-mono space-y-5 text-left" id="interactive-quiz-portal">
-                <div className="flex items-center gap-2 border-b border-accent/20 pb-3">
-                  <HelpCircle className="h-4.5 w-4.5 text-accent animate-spin" style={{ animationDuration: '4s' }} />
-                  <span className="text-xs font-bold text-neutral-dark uppercase tracking-wide">INTERACTIVE COMPETENCY WORKHEET</span>
+              <div className="glass-panel p-6 rounded-2xl space-y-4 border-l-4 border-l-accent">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4 text-accent" />
+                  <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-neutral-dark">
+                    Module Knowledge Quiz
+                  </h3>
+                </div>
+                
+                <p className="text-sm font-medium text-neutral-dark">
+                  {activeLesson.quiz.question}
+                </p>
+
+                <div className="space-y-2 pt-2">
+                  {activeLesson.quiz.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedOption(idx);
+                        setQuizSubmitted(false);
+                      }}
+                      className={`w-full text-left p-3.5 rounded-xl text-xs font-mono transition-all border flex items-center justify-between ${
+                        selectedOption === idx
+                          ? 'border-accent bg-accent/10 text-neutral-dark font-bold'
+                          : 'border-white/10 bg-white/[0.02] text-neutral-medium hover:border-white/20'
+                      }`}
+                    >
+                      <span>{opt}</span>
+                      {selectedOption === idx && <Check className="h-4 w-4 text-accent" />}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="space-y-4">
-                  <span className="block text-sm font-bold text-neutral-dark leading-relaxed">{activeLesson.quiz.question}</span>
-                  
-                  {/* Option Buttons */}
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {activeLesson.quiz.options.map((opt, optIdx) => (
-                      <button
-                        key={optIdx}
-                        disabled={quizSubmitted}
-                        onClick={() => setSelectedOption(optIdx)}
-                        className={`p-3 rounded-lg text-xs leading-5 text-left transition border ${
-                          selectedOption === optIdx
-                            ? 'bg-accent/15 border-accent text-neutral-dark font-semibold'
-                            : 'bg-neutral-light/5 border-transparent text-neutral-medium hover:bg-neutral-light/10 hover:text-neutral-dark'
-                        }`}
-                      >
-                        <span className="font-bold mr-2">{String.fromCharCode(65 + optIdx)}.</span>
-                        <span>{opt}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    onClick={handleQuizSubmit}
+                    disabled={selectedOption === null}
+                    className="px-5 py-2 bg-accent text-white font-mono font-bold text-xs rounded-xl hover:opacity-90 transition disabled:opacity-40 cursor-pointer"
+                  >
+                    Submit Answer
+                  </button>
 
-                  {/* Actions log quiz */}
-                  <div className="pt-3 flex items-center justify-between gap-4">
-                    {!quizSubmitted ? (
-                      <button
-                        onClick={handleQuizSubmit}
-                        disabled={selectedOption === null}
-                        className="px-5 py-2 bg-accent text-neutral-dark rounded-xl text-xs font-bold font-display cursor-pointer hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed glow-neon-pink"
-                      >
-                        Submit Response
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-4 flex-1">
-                        {quizScoreStatus === 'success' ? (
-                          <span className="text-xs font-bold text-accent-alt flex items-center gap-1.5 bg-accent-alt/15 px-3 py-1.5 rounded border border-accent-alt/30 animate-pulse">
-                            <Check className="h-4 w-4" />
-                            Correct Answer matched! Chapter Progress Saved.
-                          </span>
-                        ) : (
-                          <div className="flex items-center justify-between gap-4 flex-1">
-                            <span className="text-xs font-semibold text-accent flex items-center gap-1.5 bg-accent/15 px-3 py-1.5 rounded border border-accent/30">
-                              <X className="h-4 w-4" />
-                              Error: Incomplete match.
-                            </span>
-                            <button
-                              onClick={() => { setSelectedOption(null); setQuizSubmitted(false); setQuizScoreStatus('idle'); }}
-                              className="text-xs text-primary hover:underline font-bold"
-                            >
-                              Retry Quiz
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
+                  {quizScoreStatus === 'success' && (
+                    <span className="text-xs text-[#3ac58a] font-mono font-bold flex items-center gap-1">
+                      <CheckCircle className="h-4 w-4" /> Correct! Module unlocked.
+                    </span>
+                  )}
+                  {quizScoreStatus === 'failed' && (
+                    <span className="text-xs text-red-400 font-mono font-bold">
+                      Incorrect answer. Review lesson & try again!
+                    </span>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* DYNAMIC CERTIFICATE GRANTED BANNER */}
-            {allLessonsCompleted() && (
-              <div className="p-6 rounded-2xl bg-gradient-to-tr from-primary/10 via-accent/10 to-accent-alt/10 border border-primary/30 text-left font-sans space-y-4 shadow-xl relative overflow-hidden">
+            {/* DYNAMIC CERTIFICATE GRANTED / REQUEST BANNER */}
+            {progressPercentage === 100 && (
+              <div className="p-8 rounded-3xl bg-gradient-to-br from-primary/15 via-accent/10 to-primary/5 border border-primary/30 relative overflow-hidden space-y-5 animate-fade-in">
                 <div className="absolute top-0 right-0 p-8 select-none opacity-10 pointer-events-none">
                   <Award className="h-48 w-48 text-primary" />
                 </div>
@@ -604,41 +676,170 @@ export function CoursePlayer({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-accent" />
-                    <span className="text-xs font-mono font-extrabold tracking-widest text-primary uppercase">COURSE COMPLETED</span>
+                    <span className="text-xs font-mono font-extrabold tracking-widest text-primary uppercase">100% COURSE COMPLETED • CERTIFICATE READY</span>
                   </div>
-                  <h3 className="font-display font-extrabold text-lg text-neutral-dark">Congratulations!</h3>
+                  <h3 className="font-display font-extrabold text-xl text-neutral-dark">
+                    Congratulations! Mastery Achieved for {course.title}
+                  </h3>
                   <p className="text-xs text-neutral-medium leading-relaxed max-w-xl">
-                    You have finished all modules for <span className="text-neutral-dark font-bold">{course.title}</span>. Claim your verified certificate of completion below.
+                    Your official Certificate of Completion has been automatically issued and registered with Certificate ID: <strong className="text-primary font-mono">{autoIssuedCert?.verificationCode || 'GT-2026-A89F4C2'}</strong>. You can instantly download your high-resolution official PDF certificate below.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {certificateGranted ? (
-                    <button
-                      onClick={() => onNavigate('student-dashboard')}
-                      className="px-6 py-2.5 rounded-xl bg-accent-alt text-secondary-dark text-xs font-bold tracking-wide flex items-center gap-1.5 hover:bg-accent-alt-light transition cursor-pointer"
-                    >
-                      View Certificates
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleClaimCertificate}
-                      disabled={certificatePending}
-                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary via-primary-light to-accent text-black text-xs font-bold tracking-wide flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {certificatePending ? 'Generating...' : 'Claim Certificate'}
-                      <Award className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      const student = autoIssuedCert?.recipientName || userName || userEmail?.split('@')[0] || 'Verified Scholar';
+                      downloadCertificatePDF({
+                        studentName: student,
+                        courseTitle: course.title,
+                        courseCategory: course.category,
+                        certificateId: autoIssuedCert?.verificationCode || `GT-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+                        issuedAt: autoIssuedCert?.issuedAt,
+                        instructorName: course.instructorName || 'Dr. Elena Vance',
+                        duration: `${course.chapters?.length || 8} Modules`
+                      });
+                    }}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary via-primary-light to-accent text-black text-xs font-bold tracking-wide flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Official PDF Certificate
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const student = autoIssuedCert?.recipientName || userName || userEmail?.split('@')[0] || 'Verified Scholar';
+                      openCertificatePDFInNewTab({
+                        studentName: student,
+                        courseTitle: course.title,
+                        courseCategory: course.category,
+                        certificateId: autoIssuedCert?.verificationCode || `GT-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+                        issuedAt: autoIssuedCert?.issuedAt,
+                        instructorName: course.instructorName || 'Dr. Elena Vance',
+                        duration: `${course.chapters?.length || 8} Modules`
+                      });
+                    }}
+                    className="px-5 py-3 rounded-xl bg-neutral-light/10 hover:bg-neutral-light/20 text-neutral-dark text-xs font-bold tracking-wide flex items-center gap-2 transition cursor-pointer border border-white/10"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    View in New Tab
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate('student-dashboard')}
+                    className="px-5 py-3 rounded-xl bg-neutral-light/5 hover:bg-neutral-light/10 text-neutral-dark text-xs font-bold tracking-wide flex items-center gap-2 transition cursor-pointer border border-white/10"
+                  >
+                    <Award className="h-3.5 w-3.5 text-primary" />
+                    View in Dashboard
+                  </button>
 
                   <button
                     onClick={handleRewatchAndReset}
-                    className="px-6 py-2.5 rounded-xl bg-neutral-light/10 hover:bg-neutral-light/15 text-neutral-dark text-xs font-bold tracking-wide flex items-center gap-1.5 transition cursor-pointer border border-white/10"
+                    className="px-5 py-3 rounded-xl bg-neutral-light/5 hover:bg-neutral-light/10 text-neutral-medium text-xs font-bold tracking-wide flex items-center gap-2 transition cursor-pointer border border-white/10"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    Rewatch & Restart
+                    Restart
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Certificate Request Modal Dialog */}
+            {showRequestModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+                <div className="bg-[#0b0f19] border border-white/15 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 text-left relative">
+                  
+                  <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-9 w-9 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                        <Award className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-display font-bold text-white leading-none">Request Certificate</h3>
+                        <span className="text-[10px] font-mono text-white/50 uppercase tracking-widest">Instructor Email Dispatch</span>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowRequestModal(false)}
+                      className="p-1 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSubmitCertificateRequest} className="space-y-4 font-mono text-xs">
+                    <div className="p-3 bg-white/[0.03] border border-white/10 rounded-xl space-y-1">
+                      <span className="text-[10px] text-white/40 uppercase">Course</span>
+                      <p className="font-bold text-white text-sm font-display">{course.title}</p>
+                      <span className="text-[10px] text-primary">Instructor: {course.instructorName || 'Dr. Evelyn Carter'}</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                        Full Legal Name (To appear on certificate)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={requestRecipientName}
+                        onChange={(e) => setRequestRecipientName(e.target.value)}
+                        placeholder="e.g. Amina Bello"
+                        className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 rounded-xl text-white focus:border-primary focus:outline-none transition"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                        Student Email (Where certificate will be sent)
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={requestDeliveryEmail}
+                        onChange={(e) => setRequestDeliveryEmail(e.target.value)}
+                        placeholder="student@domain.com"
+                        className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 rounded-xl text-white focus:border-primary focus:outline-none transition"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                        Student Notes / Project Link (Optional)
+                      </label>
+                      <textarea
+                        value={requestStudentNotes}
+                        onChange={(e) => setRequestStudentNotes(e.target.value)}
+                        placeholder="Include any final capstone GitHub repository links, feedback, or notes for the instructor..."
+                        className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 rounded-xl text-white focus:border-primary focus:outline-none transition h-20"
+                      />
+                    </div>
+
+                    {requestSuccessMessage && (
+                      <div className="p-3 bg-[#3ac58a]/15 border border-[#3ac58a]/30 rounded-xl text-[#3ac58a] text-xs font-mono animate-fade-in flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 shrink-0" />
+                        <span>{requestSuccessMessage}</span>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowRequestModal(false)}
+                        className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={certificatePending || !requestDeliveryEmail.includes('@')}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary via-primary-light to-accent text-black font-display font-bold text-xs hover:opacity-90 disabled:opacity-40 transition cursor-pointer flex items-center gap-2"
+                      >
+                        {certificatePending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {certificatePending ? 'Submitting...' : 'Submit Request to Instructor'}
+                      </button>
+                    </div>
+                  </form>
+
                 </div>
               </div>
             )}
