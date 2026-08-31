@@ -31,7 +31,6 @@
     "recharts": "^3.8.1",
     "vite": "^6.2.3"
   },
-
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
