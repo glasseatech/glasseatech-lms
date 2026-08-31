@@ -1020,10 +1020,8 @@ app.post('/api/courses/:id/reviews', apiRateLimiter(30, 60 * 1000), (req, res) =
     return res.status(400).json({ error: 'Rating and comment are required.' });
   }
 
-  const course = db.courses.find(c => c.id === id);
-  if (!course) {
-    return res.status(404).json({ error: 'Course not found.' });
-  }
+  // Allow reviews even for courses not in the local db (e.g. custom or Firestore-only courses)
+  const course = db.courses.find(c => c.id === id) || null;
 
   if (!db.reviews[id]) {
     db.reviews[id] = [];
@@ -1034,7 +1032,7 @@ app.post('/api/courses/:id/reviews', apiRateLimiter(30, 60 * 1000), (req, res) =
   const authorName = userName || (userEmail ? userEmail.split('@')[0] : 'Verified Scholar');
 
   // Prevent duplicate spam: if same user already reviewed, update their review
-  const existingIdx = db.reviews[id].findIndex(r => 
+  const existingIdx = db.reviews[id].findIndex(r =>
     (userId && r.userId === userId) || (userEmail && r.userEmail === userEmail)
   );
 
@@ -1064,34 +1062,36 @@ app.post('/api/courses/:id/reviews', apiRateLimiter(30, 60 * 1000), (req, res) =
     db.reviews[id].push(targetReview);
   }
 
-  // Recalculate Course Overall Rating and Review Count
+  // Recalculate Course Overall Rating and Review Count (only for courses in local db)
   const allCourseReviews = db.reviews[id];
   const totalStars = allCourseReviews.reduce((sum, r) => sum + r.rating, 0);
   const avgRating = Math.round((totalStars / allCourseReviews.length) * 10) / 10;
-  
-  course.rating = avgRating;
-  course.reviewsCount = allCourseReviews.length;
+
+  if (course) {
+    course.rating = avgRating;
+    course.reviewsCount = allCourseReviews.length;
+
+    // Notify instructor
+    db.notifications.push({
+      id: `notif-${Date.now()}-inst-review`,
+      userId: course.instructorId,
+      title: 'New Student Course Review ⭐',
+      message: `${authorName} rated "${course.title}" ${numRating}/5 stars: "${cleanComment.substring(0, 60)}..."`,
+      isRead: false,
+      createdAt: new Date().toISOString()
+    });
+  }
 
   saveDB(db);
-
-  // Notify instructor
-  db.notifications.push({
-    id: `notif-${Date.now()}-inst-review`,
-    userId: course.instructorId,
-    title: 'New Student Course Review ⭐',
-    message: `${authorName} rated "${course.title}" ${numRating}/5 stars: "${cleanComment.substring(0, 60)}..."`,
-    isRead: false,
-    createdAt: new Date().toISOString()
-  });
 
   res.status(201).json({
     success: true,
     review: targetReview,
-    course: {
+    course: course ? {
       id: course.id,
       rating: course.rating,
       reviewsCount: course.reviewsCount
-    },
+    } : { id, rating: avgRating, reviewsCount: allCourseReviews.length },
     reviews: allCourseReviews
   });
 });
