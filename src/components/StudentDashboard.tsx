@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Course, Purchase, Certificate, Notification } from '../types.ts';
 import Analytics from './Analytics.tsx';
+import { downloadCertificatePDF, openCertificatePDFInNewTab } from '../utils/certificateGenerator.ts';
 
 interface StudentDashboardProps {
   purchasedCourses: Course[];
@@ -399,14 +400,30 @@ export function StudentDashboard({
                     </div>
 
                     <div className="pt-3 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-neutral-medium uppercase">Code: {cert.verificationCode.substring(0, 10)}</span>
-                      <button 
-                        onClick={() => setSelectedCert(cert)}
-                        className="text-primary hover:text-primary-light flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
-                      >
-                        <Eye className="h-3 w-3" />
-                        View Certificate
-                      </button>
+                      <span className="text-neutral-medium uppercase">{cert.verificationCode}</span>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => downloadCertificatePDF({
+                            studentName: cert.recipientName || userName,
+                            courseTitle: cert.courseTitle,
+                            certificateId: cert.verificationCode,
+                            issuedAt: cert.issuedAt,
+                            instructorName: cert.instructorName || 'Dr. Elena Vance'
+                          })}
+                          className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
+                          title="Download Official PDF"
+                        >
+                          <Download className="h-3 w-3" />
+                          Download PDF
+                        </button>
+                        <button 
+                          onClick={() => setSelectedCert(cert)}
+                          className="text-primary hover:text-primary-light flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
+                        >
+                          <Eye className="h-3 w-3" />
+                          View
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -570,7 +587,7 @@ export function StudentDashboard({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-8 pt-8 font-mono border-t border-white/[0.08] text-xs text-left">
+              <div className="grid grid-cols-2 gap-8 pt-6 font-mono border-t border-white/[0.08] text-xs text-left">
                 <div>
                   <span className="block text-[9px] text-neutral-medium uppercase">DATE ISSUED</span>
                   <span className="font-bold text-neutral-dark">{selectedCert.issuedAt}</span>
@@ -579,6 +596,36 @@ export function StudentDashboard({
                   <span className="block text-[9px] text-neutral-medium uppercase">CERTIFICATE ID</span>
                   <span className="font-bold text-accent font-mono">{selectedCert.verificationCode}</span>
                 </div>
+              </div>
+
+              {/* Action Buttons for Digital Diploma */}
+              <div className="flex flex-wrap gap-3 justify-center pt-4 border-t border-white/[0.08]">
+                <button
+                  onClick={() => downloadCertificatePDF({
+                    studentName: selectedCert.recipientName || userName,
+                    courseTitle: selectedCert.courseTitle,
+                    certificateId: selectedCert.verificationCode,
+                    issuedAt: selectedCert.issuedAt,
+                    instructorName: selectedCert.instructorName || 'Dr. Elena Vance'
+                  })}
+                  className="px-6 py-2.5 bg-gradient-to-r from-primary via-primary-light to-accent text-black text-xs font-bold rounded-xl shadow-lg hover:scale-105 transition flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Official PDF
+                </button>
+                <button
+                  onClick={() => openCertificatePDFInNewTab({
+                    studentName: selectedCert.recipientName || userName,
+                    courseTitle: selectedCert.courseTitle,
+                    certificateId: selectedCert.verificationCode,
+                    issuedAt: selectedCert.issuedAt,
+                    instructorName: selectedCert.instructorName || 'Dr. Elena Vance'
+                  })}
+                  className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white text-xs font-bold rounded-xl transition flex items-center gap-2"
+                >
+                  <Eye className="h-4 w-4" />
+                  Open in New Tab
+                </button>
               </div>
             </div>
 
