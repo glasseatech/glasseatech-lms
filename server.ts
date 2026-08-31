@@ -1004,6 +1004,23 @@ app.get('/api/certificates/verify/:code', (req, res) => {
 // REAL-TIME COURSE REVIEWS & RATINGS API
 // ==========================================
 
+// GET ALL COURSE REVIEW AGGREGATES
+app.get('/api/courses/reviews/aggregates', (req, res) => {
+  const aggregates: Record<string, { rating: number; reviewsCount: number }> = {};
+  Object.keys(db.reviews || {}).forEach(courseId => {
+    const revs = db.reviews[courseId] || [];
+    if (revs.length > 0) {
+      const totalStars = revs.reduce((sum, r) => sum + r.rating, 0);
+      const avg = Math.round((totalStars / revs.length) * 10) / 10;
+      aggregates[courseId] = {
+        rating: avg,
+        reviewsCount: revs.length
+      };
+    }
+  });
+  res.json(aggregates);
+});
+
 // GET REVIEWS FOR A COURSE
 app.get('/api/courses/:id/reviews', (req, res) => {
   const { id } = req.params;
