@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 
 export function AdminHomepageContent() {
-  const [activeSubTab, setActiveSubTab] = useState<'config' | 'features' | 'faqs'>('config');
+  const [activeSubTab, setActiveSubTab] = useState<'config' | 'features' | 'faqs' | 'contact'>('config');
   
   const [features, setFeatures] = useState<any[]>([]);
   const [faqs, setFaqs] = useState<any[]>([]);
@@ -34,7 +34,18 @@ export function AdminHomepageContent() {
     footerCopyright: '© 2026 GLASSEA TECH LTD. ALL RIGHTS RESERVED',
     primaryColor: '#00D9FF',
     accentColor: '#FF0099',
-    neutralBg: '#0B0F19'
+    neutralBg: '#0B0F19',
+    // Contact section
+    contactPhone: '+234 800 000 0000',
+    contactEmail: 'glasseatech@gmail.com',
+    contactAddress: '14 Digital Avenue, Lagos Tech Hub, Lagos, Nigeria',
+    contactHours: 'Monday – Friday: 9am – 6pm WAT',
+    contactMapEmbedUrl: '',
+    socialTwitter: 'https://twitter.com/glasseatech',
+    socialLinkedin: '',
+    socialYoutube: '',
+    socialInstagram: '',
+    socialWhatsapp: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -103,6 +114,7 @@ export function AdminHomepageContent() {
     if (activeSubTab === 'config') fetchSiteConfig();
     if (activeSubTab === 'features') fetchFeatures();
     if (activeSubTab === 'faqs') fetchFaqs();
+    if (activeSubTab === 'contact') fetchSiteConfig();
   }, [activeSubTab]);
 
   const handleSaveConfig = async () => {
@@ -218,6 +230,12 @@ export function AdminHomepageContent() {
           className={`px-4 py-2 font-display font-bold text-xs rounded-xl transition ${activeSubTab === 'faqs' ? 'bg-primary text-black' : 'bg-white/5 text-neutral-medium hover:text-white'}`}
         >
           FAQs
+        </button>
+        <button
+          onClick={() => setActiveSubTab('contact')}
+          className={`px-4 py-2 font-display font-bold text-xs rounded-xl transition ${activeSubTab === 'contact' ? 'bg-primary text-black' : 'bg-white/5 text-neutral-medium hover:text-white'}`}
+        >
+          Contact Info
         </button>
       </div>
 
@@ -552,6 +570,73 @@ export function AdminHomepageContent() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'contact' && (
+        <div className="space-y-6">
+          <div className="p-5 bg-secondary-dark rounded-xl border border-white/10 space-y-5">
+            <h3 className="text-lg font-display font-bold text-white mb-1">Contact Information</h3>
+            <p className="text-xs text-neutral-medium">This information is displayed on the homepage Contact section and footer.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">📞 Phone Number</label>
+                <input type="text" value={siteConfig.contactPhone || ''} onChange={(e) => setSiteConfig({...siteConfig, contactPhone: e.target.value})} placeholder="+234 800 000 0000" className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">✉️ Contact Email</label>
+                <input type="email" value={siteConfig.contactEmail || ''} onChange={(e) => setSiteConfig({...siteConfig, contactEmail: e.target.value})} placeholder="hello@glassea.com" className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-neutral-medium mb-1">📍 Office Address</label>
+              <textarea value={siteConfig.contactAddress || ''} onChange={(e) => setSiteConfig({...siteConfig, contactAddress: e.target.value})} placeholder="14 Digital Avenue, Lagos Tech Hub" className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm h-16" />
+            </div>
+
+            <div>
+              <label className="block text-xs text-neutral-medium mb-1">🕐 Office Hours</label>
+              <input type="text" value={siteConfig.contactHours || ''} onChange={(e) => setSiteConfig({...siteConfig, contactHours: e.target.value})} placeholder="Monday – Friday: 9am – 6pm WAT" className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+            </div>
+
+            <div>
+              <label className="block text-xs text-neutral-medium mb-1">🗺️ Google Maps Embed URL (optional)</label>
+              <input type="text" value={siteConfig.contactMapEmbedUrl || ''} onChange={(e) => setSiteConfig({...siteConfig, contactMapEmbedUrl: e.target.value})} placeholder="https://maps.google.com/embed?..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+            </div>
+          </div>
+
+          <div className="p-5 bg-secondary-dark rounded-xl border border-white/10 space-y-4">
+            <h3 className="text-md font-display font-bold text-white">Social Media Links</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">𝕏 Twitter / X URL</label>
+                <input type="url" value={siteConfig.socialTwitter || ''} onChange={(e) => setSiteConfig({...siteConfig, socialTwitter: e.target.value})} placeholder="https://twitter.com/..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">in LinkedIn URL</label>
+                <input type="url" value={siteConfig.socialLinkedin || ''} onChange={(e) => setSiteConfig({...siteConfig, socialLinkedin: e.target.value})} placeholder="https://linkedin.com/company/..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">▶ YouTube URL</label>
+                <input type="url" value={siteConfig.socialYoutube || ''} onChange={(e) => setSiteConfig({...siteConfig, socialYoutube: e.target.value})} placeholder="https://youtube.com/@..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">📷 Instagram URL</label>
+                <input type="url" value={siteConfig.socialInstagram || ''} onChange={(e) => setSiteConfig({...siteConfig, socialInstagram: e.target.value})} placeholder="https://instagram.com/..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-medium mb-1">💬 WhatsApp Link</label>
+                <input type="url" value={siteConfig.socialWhatsapp || ''} onChange={(e) => setSiteConfig({...siteConfig, socialWhatsapp: e.target.value})} placeholder="https://wa.me/234..." className="w-full bg-black/40 border border-white/10 rounded p-2 text-white text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button onClick={handleSaveConfig} className="bg-primary text-black px-5 py-2.5 font-bold rounded-xl hover:opacity-90 transition">
+              Save Contact Settings
+            </button>
           </div>
         </div>
       )}
