@@ -111,7 +111,7 @@ export default function FlutterwaveModal({
                     userId: customerEmail,
                     userName: customerName,
                     courseId: cId,
-                    amount: currentAmount,
+                    amount: currentPayableAmount,
                     currency: currency,
                     reference: finalRef,
                     gateway: 'flutterwave'
@@ -132,7 +132,7 @@ export default function FlutterwaveModal({
                   userId: customerEmail,
                   userName: customerName,
                   courseId: cId,
-                  amount: currentAmount,
+                  amount: currentPayableAmount,
                   currency: currency,
                   reference: finalRef,
                   status: 'success',
