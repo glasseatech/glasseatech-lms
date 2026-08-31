@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   PlusCircle, Sparkles, AlertCircle, CheckCircle, DollarSign, 
   Users, BookOpen, Activity, ChevronRight, Play, Check, HelpCircle, 
-  Trash2, Server, Eye, Loader2, Upload, ArrowRight, ShieldCheck, Clock
+  Trash2, Server, Eye, Loader2, Upload, ArrowRight, ShieldCheck, Clock,
+  Award, RefreshCw, X
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, 
   BarChart, Bar, Legend 
 } from 'recharts';
-import { Course, Chapter, Lesson, Quiz } from '../types.ts';
+import { Course, Chapter, Lesson, Quiz, CertificateRequest } from '../types.ts';
 import { compressImageFile } from '../utils/imageCompressor';
 
 interface InstructorDashboardProps {
@@ -62,12 +63,78 @@ export default function InstructorDashboard({
   };
 
   // Navigation tabs
-  const [activeSubTab, setActiveSubTab] = useState<'analytics' | 'create-course'>('analytics');
+  const [activeSubTab, setActiveSubTab] = useState<'analytics' | 'create-course' | 'certificates'>('analytics');
   
   // Analytics ledger state
   const [earnings, setEarnings] = useState(0); 
   const [studentCount, setStudentCount] = useState(0);
   const [revenueChartData, setRevenueChartData] = useState<any[]>([]);
+
+  // Certificate requests management state
+  const [certRequests, setCertRequests] = useState<CertificateRequest[]>([]);
+  const [certRequestsLoading, setCertRequestsLoading] = useState(false);
+  const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
+  const [certActionMessage, setCertActionMessage] = useState('');
+
+  const fetchCertRequests = async () => {
+    setCertRequestsLoading(true);
+    try {
+      const res = await fetch(`/api/certificates/requests?instructorId=${encodeURIComponent(userEmail || 'inst-1')}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCertRequests(data);
+      }
+    } catch (err) {
+      console.error('Error fetching certificate requests:', err);
+    } finally {
+      setCertRequestsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCertRequests();
+  }, [userEmail]);
+
+  const handleApproveCertificate = async (requestId: string) => {
+    setApprovingRequestId(requestId);
+    setCertActionMessage('');
+    try {
+      const res = await fetch('/api/certificates/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCertActionMessage(`Certificate approved! Credentials generated and dispatched to student email: ${data.request?.studentEmail}`);
+        fetchCertRequests();
+        setTimeout(() => setCertActionMessage(''), 5000);
+      }
+    } catch (err) {
+      console.error('Error approving certificate:', err);
+    } finally {
+      setApprovingRequestId(null);
+    }
+  };
+
+  const handleRejectCertificate = async (requestId: string) => {
+    const reason = prompt('Please specify feedback or reason for revision:');
+    if (reason === null) return;
+    try {
+      const res = await fetch('/api/certificates/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, reason })
+      });
+      if (res.ok) {
+        setCertActionMessage('Revision request sent to student.');
+        fetchCertRequests();
+        setTimeout(() => setCertActionMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Error rejecting certificate:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchInstructorStats = async () => {
@@ -629,6 +696,21 @@ export default function InstructorDashboard({
           >
             {editingCourseId ? 'Edit Course' : 'Create New Course (+ AI)'}
           </button>
+          <button
+            onClick={() => { setActiveSubTab('certificates'); fetchCertRequests(); }}
+            className={`pb-3 pt-1.5 text-xs font-mono font-bold uppercase tracking-widest border-b-2 transition shrink-0 relative ${
+              activeSubTab === 'certificates'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-neutral-medium hover:text-neutral-dark'
+            }`}
+          >
+            Certificate Requests
+            {certRequests.filter(r => r.status === 'pending').length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 bg-accent text-white text-[9px] font-bold rounded-full">
+                {certRequests.filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* ================= SUB TAB: ANALYTICAL RECHARTS CHANNELS ================= */}
@@ -882,6 +964,139 @@ export default function InstructorDashboard({
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* ================= SUB TAB: CERTIFICATE REQUESTS ================= */}
+        {activeSubTab === 'certificates' && (
+          <div className="mt-8 space-y-6" id="instructor-cert-requests-tab">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h3 className="text-sm font-mono font-bold tracking-widest text-neutral-medium uppercase">Student Certificate Requests</h3>
+                <p className="text-xs text-neutral-medium/70 mt-1">Review student completion submissions and approve to send verified credentials to their email.</p>
+              </div>
+              <button
+                onClick={fetchCertRequests}
+                className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 text-neutral-medium hover:text-white hover:border-white/20 rounded-xl text-xs font-mono font-bold transition"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </button>
+            </div>
+
+            {certActionMessage && (
+              <div className="p-4 bg-[#3ac58a]/15 border border-[#3ac58a]/30 rounded-xl text-[#3ac58a] text-xs font-mono animate-fade-in flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                <span>{certActionMessage}</span>
+              </div>
+            )}
+
+            {certRequestsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                <span className="ml-3 text-xs text-neutral-medium font-mono">Loading requests...</span>
+              </div>
+            ) : certRequests.length === 0 ? (
+              <div className="glass-panel p-12 rounded-2xl text-center space-y-3">
+                <Award className="h-8 w-8 text-neutral-medium mx-auto opacity-40" />
+                <p className="text-xs text-neutral-medium font-mono">No certificate requests yet. Once students complete your courses and request certificates, they will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {certRequests.map((req) => (
+                  <div key={req.id} className={`glass-panel p-5 sm:p-6 rounded-2xl border transition-all ${
+                    req.status === 'approved' ? 'border-[#3ac58a]/30 bg-[#3ac58a]/[0.02]' :
+                    req.status === 'rejected' ? 'border-red-500/20 bg-red-500/[0.02]' :
+                    'border-accent/20 bg-accent/[0.02]'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row justify-between gap-4">
+                      <div className="space-y-2 text-left">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border ${
+                            req.status === 'approved' ? 'bg-[#3ac58a]/15 text-[#3ac58a] border-[#3ac58a]/30' :
+                            req.status === 'rejected' ? 'bg-red-500/15 text-red-400 border-red-500/30' :
+                            'bg-accent/15 text-accent border-accent/30 animate-pulse'
+                          }`}>
+                            {req.status === 'approved' ? '✓ APPROVED & EMAILED' :
+                             req.status === 'rejected' ? '✗ REVISION REQUESTED' :
+                             '◉ PENDING REVIEW'}
+                          </span>
+                          {req.status === 'approved' && req.emailSent && (
+                            <span className="text-[10px] font-mono text-[#3ac58a] flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3" /> Email Dispatched
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="font-display font-bold text-neutral-dark text-sm">{req.recipientName}</p>
+                          <p className="text-xs text-neutral-medium font-mono">{req.studentEmail}</p>
+                        </div>
+
+                        <div className="text-xs text-neutral-medium">
+                          <span className="font-bold text-neutral-dark/80">Course: </span>
+                          <span>{req.courseTitle}</span>
+                        </div>
+
+                        {req.studentNotes && (
+                          <div className="p-3 bg-black/20 border border-white/5 rounded-xl text-xs font-mono text-neutral-medium/80 italic">
+                            "{req.studentNotes}"
+                          </div>
+                        )}
+
+                        {req.rejectionReason && (
+                          <div className="text-xs text-red-400 font-mono">
+                            <span className="font-bold">Revision Note: </span>{req.rejectionReason}
+                          </div>
+                        )}
+
+                        {req.verificationCode && req.status === 'approved' && (
+                          <div className="text-xs font-mono text-[#3ac58a]/80 flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" />
+                            Code: {req.verificationCode}
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-neutral-medium/50 font-mono">
+                          Requested: {new Date(req.requestedAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      {req.status === 'pending' && (
+                        <div className="flex sm:flex-col gap-2 items-start sm:items-end shrink-0">
+                          <button
+                            onClick={() => handleApproveCertificate(req.id)}
+                            disabled={approvingRequestId === req.id}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#3ac58a] text-black text-xs font-bold rounded-xl hover:bg-[#32b27b] transition disabled:opacity-50 cursor-pointer shadow-lg shadow-emerald-500/20"
+                          >
+                            {approvingRequestId === req.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4" />
+                            )}
+                            Approve & Email
+                          </button>
+                          <button
+                            onClick={() => handleRejectCertificate(req.id)}
+                            disabled={approvingRequestId === req.id}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 text-red-400 hover:border-red-500/30 hover:bg-red-500/10 text-xs font-bold rounded-xl transition cursor-pointer"
+                          >
+                            <X className="h-4 w-4" />
+                            Request Revision
+                          </button>
+                        </div>
+                      )}
+
+                      {req.status === 'approved' && (
+                        <div className="flex items-center gap-2 shrink-0 text-xs font-mono text-[#3ac58a]">
+                          <Award className="h-5 w-5" />
+                          <span>Issued {req.issuedAt}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
