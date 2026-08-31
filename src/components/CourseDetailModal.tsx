@@ -79,14 +79,15 @@ export default function CourseDetailModal({
   // Whenever reviews change, recalculate live rating
   useEffect(() => {
     if (reviews.length === 0) {
-      setLiveRating(null);
-      setLiveReviewCount(0);
+      setLiveRating(course?.rating ?? 5.0);
+      setLiveReviewCount((course as any)?.reviewsCount ?? 0);
       return;
     }
     const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-    setLiveRating(Math.round(avg * 10) / 10);
+    const roundedAvg = Math.round(avg * 10) / 10;
+    setLiveRating(roundedAvg);
     setLiveReviewCount(reviews.length);
-  }, [reviews]);
+  }, [reviews, course]);
 
   // Fetch reviews from backend database or Firestore fallback
   const fetchReviews = async () => {
@@ -126,7 +127,11 @@ export default function CourseDetailModal({
     const savedLocal = localStorage.getItem(`course_reviews_${course.id}`);
     if (savedLocal) {
       try {
-        setReviews(JSON.parse(savedLocal));
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setReviews(parsed);
+          return;
+        }
       } catch (e) {}
     }
   };
@@ -153,10 +158,22 @@ export default function CourseDetailModal({
       createdAt: new Date().toISOString()
     };
 
-    let saved = false;
+    const updatedReviews = [newReview, ...reviews.filter(r => r.id !== newReview.id && (userEmail ? r.userEmail !== userEmail : true))];
+    const totalStars = updatedReviews.reduce((sum, r) => sum + r.rating, 0);
+    const newAvg = Math.round((totalStars / updatedReviews.length) * 10) / 10;
+    const newCount = updatedReviews.length;
+
+    // Immediately update local state
+    setReviews(updatedReviews);
+    setLiveRating(newAvg);
+    setLiveReviewCount(newCount);
+    try {
+      localStorage.setItem(`course_reviews_${course.id}`, JSON.stringify(updatedReviews));
+      localStorage.setItem(`course_rating_${course.id}`, JSON.stringify({ rating: newAvg, reviewsCount: newCount }));
+    } catch (_) {}
 
     try {
-      const res = await fetch(`/api/courses/${course.id}/reviews`, {
+      await fetch(`/api/courses/${course.id}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,39 +184,37 @@ export default function CourseDetailModal({
           comment: newReview.comment
         })
       }).catch(() => null);
-
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data.reviews) {
-          setReviews(data.reviews);
-        } else if (data.review) {
-          setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
-        }
-        saved = true;
-      }
     } catch (err) {
       // Backend not available
     }
 
     // Direct Firestore sync for static deployments
     try {
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const { collection, addDoc, serverTimestamp, doc, setDoc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase.ts');
       await addDoc(collection(db, 'courses_reviews'), {
         ...newReview,
         timestamp: serverTimestamp()
       });
-      saved = true;
+
+      // Update course document metadata if present
+      try {
+        await updateDoc(doc(db, 'courses', course.id), {
+          rating: newAvg,
+          reviewsCount: newCount
+        });
+      } catch (_) {}
+
+      try {
+        await setDoc(doc(db, 'courses_metadata', course.id), {
+          rating: newAvg,
+          reviewsCount: newCount,
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
+      } catch (_) {}
     } catch (fsErr) {
       console.warn('Firestore review save notice:', fsErr);
     }
-
-    // Save to local state and localStorage
-    setReviews(prev => {
-      const updated = [newReview, ...prev.filter(r => r.id !== newReview.id)];
-      localStorage.setItem(`course_reviews_${course.id}`, JSON.stringify(updated));
-      return updated;
-    });
 
     setComment('');
     setRating(5);
@@ -272,7 +287,7 @@ export default function CourseDetailModal({
               </span>
               <span className="text-[10px] font-semibold text-neutral-medium flex items-center gap-1">
                 <Star className="h-3.5 w-3.5 text-accent fill-accent" />
-                <span className="text-white font-bold text-xs">{liveRating ?? course.rating}</span>
+                <span className="text-white font-bold text-xs">{Number(liveRating ?? course.rating ?? 5.0).toFixed(1)}</span>
                 <span className="text-neutral-medium/70">
                   ({liveReviewCount !== null ? liveReviewCount : (course as any).reviewsCount || 0} reviews)
                 </span>
