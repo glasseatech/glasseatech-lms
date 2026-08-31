@@ -869,7 +869,7 @@ export default function App() {
             currentRole={currentRole}
             userEmail={userEmail}
             userName={userName}
-            onCourseUpdated={fetchCourses}
+            onCourseUpdated={fetchMainDatabase}
           />
         )}
 
