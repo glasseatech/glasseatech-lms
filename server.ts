@@ -912,10 +912,92 @@ app.post('/api/certificates/reject', apiRateLimiter(20, 60 * 1000), (req, res) =
 app.get('/api/certificates', (req, res) => {
   const { userId } = req.query;
   if (userId) {
-    const userCerts = db.certificates.filter(c => c.userId === userId);
+    const userCerts = db.certificates.filter(c => c.userId === userId || c.studentEmail === userId);
     return res.json(userCerts);
   }
   res.json(db.certificates);
+});
+
+// AUTOMATIC INSTANT CERTIFICATE ISSUANCE UPON COURSE COMPLETION
+app.post('/api/certificates/auto-issue', apiRateLimiter(20, 60 * 1000), async (req, res) => {
+  const { userId, userEmail, userName, courseId, courseTitle, courseCategory, instructorName, duration } = req.body;
+  if (!userId || !courseId) {
+    return res.status(400).json({ error: 'Missing userId or courseId.' });
+  }
+
+  const course = db.courses.find(c => c.id === courseId);
+  const title = courseTitle || course?.title || 'Masterclass Curriculum';
+  const category = courseCategory || course?.category || 'Software Engineering';
+  const instructor = instructorName || course?.instructorName || 'Dr. Elena Vance';
+
+  // Check if certificate already issued
+  let existingCert = db.certificates.find(c => (c.userId === userId || c.studentEmail === userEmail) && c.courseId === courseId);
+  if (existingCert) {
+    return res.json({ success: true, certificate: existingCert, isExisting: true });
+  }
+
+  const verificationCode = `GT-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const issuedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const newCert: Certificate = {
+    id: `cert-${Date.now()}`,
+    userId,
+    studentEmail: userEmail || '',
+    courseId,
+    courseTitle: title,
+    recipientName: userName || userEmail?.split('@')[0] || 'Verified Scholar',
+    issuedAt: issuedDate,
+    verificationCode,
+    status: 'approved',
+    instructorId: course?.instructorId || 'inst-1',
+    instructorName: instructor,
+    emailSent: true
+  };
+
+  db.certificates.push(newCert);
+
+  // Firestore sync if connected
+  const fsDb = getDb();
+  if (fsDb) {
+    try {
+      await setDoc(doc(fsDb, 'certificates', newCert.id), newCert);
+    } catch (e) {
+      console.warn('Firestore certificate sync notice:', e);
+    }
+  }
+
+  // Push instant celebratory notification
+  db.notifications.push({
+    id: `notif-${Date.now()}-cert-issued`,
+    userId,
+    title: '🎓 Certificate of Completion Issued!',
+    message: `Congratulations on graduating from "${title}"! Your official certificate (${verificationCode}) is ready to download.`,
+    isRead: false,
+    createdAt: new Date().toISOString()
+  });
+
+  saveDB(db);
+  res.status(201).json({ success: true, certificate: newCert });
+});
+
+// PUBLIC CERTIFICATE VERIFICATION ENDPOINT
+app.get('/api/certificates/verify/:code', (req, res) => {
+  const { code } = req.params;
+  const cert = db.certificates.find(c => c.verificationCode === code || c.id === code);
+  if (!cert) {
+    return res.status(404).json({ valid: false, error: 'Certificate ID not found.' });
+  }
+  res.json({
+    valid: true,
+    certificate: {
+      recipientName: cert.recipientName,
+      courseTitle: cert.courseTitle,
+      issuedAt: cert.issuedAt,
+      verificationCode: cert.verificationCode,
+      instructorName: cert.instructorName,
+      status: cert.status
+    }
+  });
 });
 
 // ==========================================
