@@ -325,7 +325,7 @@ export function StudentDashboard({
                           <span className="text-[10px] bg-neutral-light/10 text-neutral-dark font-mono px-2.5 py-1 rounded">
                             {course.category}
                           </span>
-                          <span className="text-xs text-neutral-medium font-mono font-bold text-neutral-dark">₦{(course.price || 0).toLocaleString()}</span>
+                          <span className="text-xs font-mono font-bold text-neutral-dark">{(!course.price || course.price === 0) ? 'Free' : `$${course.price}`}</span>
                         </div>
 
                         <h3 className="font-display font-bold text-lg text-neutral-dark leading-snug">
